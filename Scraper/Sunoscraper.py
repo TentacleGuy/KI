@@ -2,6 +2,7 @@ import os
 import json
 import time
 import re
+import threading
 from datetime import datetime
 from bs4 import BeautifulSoup
 from selenium import webdriver
@@ -9,12 +10,8 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
-from rich.console import Console, Group
-from rich.progress import Progress, TextColumn, BarColumn, TimeElapsedColumn, TimeRemainingColumn, MofNCompleteColumn
-from rich.live import Live
-from rich.panel import Panel
-from rich.columns import Columns
-from rich.text import Text
+import tkinter as tk
+from tkinter import ttk, scrolledtext, messagebox
 
 # Ordner für die Song-JSON-Dateien
 SONGS_DIR = "songs"
@@ -30,9 +27,6 @@ SONG_STYLES_MAPPING_FILE = "song_styles_mapping.json"
 META_TAGS_FILE = "all_meta_tags.json"
 SONG_META_MAPPING_FILE = "song_meta_mapping.json"
 
-# Rich Console
-console = Console()
-
 # Lade JSON Datei, falls vorhanden
 def load_json(file_path):
     """Lädt eine bestehende JSON-Datei, falls vorhanden."""
@@ -46,12 +40,13 @@ def save_json(data, file_path):
     """Speichert die JSON-Datei."""
     with open(file_path, 'w', encoding="utf-8") as file:
         json.dump(data, file, indent=4)
-    # Entfernt console.log-Ausgaben, um die Anzeige sauber zu halten
 
 # Bereinige ungültige Zeichen im Dateinamen
 def clean_filename(filename):
     """Bereinigt den Dateinamen von ungültigen Zeichen."""
-    return re.sub(r'[<>:"/\\|?*]', '', filename)
+    filename = re.sub(r'[^A-Za-z0-9 _\-.]', '', filename)
+    filename = re.sub(r'\s+', ' ', filename).strip()
+    return filename
 
 # Meta-Tags extrahieren
 def extract_meta_tags(lyrics):
@@ -78,244 +73,6 @@ def get_processed_song_ids():
             song_id = name.split('_')[-1]
             song_ids.add(song_id)
     return song_ids
-
-# Panels erstellen mit mutable Text Objekten
-def create_last_song_panel(last_song_info):
-    if not last_song_info['content']:
-        return Panel("Keine Informationen zum letzten Song.", title="Letzter Song", border_style="green")
-    else:
-        return Panel(last_song_info['content'], title="Letzter Song", border_style="green")
-
-def create_current_song_panel(current_song_info):
-    if not current_song_info['content']:
-        return Panel("Keine Informationen zum aktuellen Song.", title="Aktueller Song", border_style="cyan")
-    else:
-        return Panel(current_song_info['content'], title="Aktueller Song", border_style="cyan")
-
-# Playlists scrapen und Song-Links sammeln
-def scrape_playlists(driver):
-    """Scraped die Startseite nach Playlists und deren Songs."""
-    playlists = load_json(SCRAPED_PLAYLISTS_FILE)  # Vorhandene Daten laden
-    total_songs = 0
-    console.log("Öffne die Webseite [blue]suno.com[/blue]...")
-    driver.get("https://suno.com")
-    time.sleep(5)  # Warte, bis die Seite geladen ist
-
-    console.log("Suche nach Playlist-Links auf der Startseite...")
-    playlist_links = driver.find_elements(By.XPATH, "//a[contains(@href, '/playlist/')]")
-    playlist_urls = list(set([link.get_attribute("href") for link in playlist_links]))  # Duplikate entfernen
-    console.log(f"Gefundene Playlist-Links: {len(playlist_urls)}")
-
-    with Progress(
-        TextColumn("[progress.description]{task.description}"),
-        BarColumn(),
-        MofNCompleteColumn(),
-        TimeElapsedColumn(),
-        TimeRemainingColumn(),
-        console=console,
-    ) as progress:
-        task = progress.add_task("Playlists scrapen...", total=len(playlist_urls))
-        for playlist_url in playlist_urls:
-            driver.get(playlist_url)
-            time.sleep(5)  # Warte, bis die Playlist-Seite geladen ist
-
-            song_links = driver.find_elements(By.XPATH, "//a[contains(@href, '/song/')]")
-            song_urls = list(set([link.get_attribute("href") for link in song_links]))  # Duplikate entfernen
-
-            total_songs += len(song_urls)
-            playlists[playlist_url] = {"song_urls": song_urls}
-
-            # Speichere die Playlists
-            save_json(playlists, SCRAPED_PLAYLISTS_FILE)
-            progress.advance(task)
-
-    console.log(f"\n[green]Scraping abgeschlossen:[/green] {len(playlists)} Playlists und {total_songs} Songs wurden gefunden.\n")
-
-    return playlists
-
-# Songinformationen scrapen und speichern
-def scrape_songs_from_url_list(url_list, driver):
-    """Durchsucht die URLs nach Songs und speichert die Songinformationen."""
-    all_styles = load_json(STYLES_FILE) or []
-    song_styles_mapping = load_json(SONG_STYLES_MAPPING_FILE) or {}
-    all_meta_tags = load_json(META_TAGS_FILE) or []
-    song_meta_mapping = load_json(SONG_META_MAPPING_FILE) or {}
-
-    total_playlists = len(url_list)
-    total_songs = sum(len(playlist_data['song_urls']) for playlist_data in url_list.values())
-
-    # Bereits verarbeitete Song-IDs abrufen
-    processed_song_ids = get_processed_song_ids()
-
-    # Variablen für Panels mit mutable Text Objekten
-    last_song_info = {'content': Text()}
-    current_song_info = {'content': Text()}
-
-    # Fortschrittsbalken erstellen
-    overall_progress = Progress(
-        TextColumn("[progress.description]{task.description}"),
-        BarColumn(),
-        MofNCompleteColumn(),
-        TimeElapsedColumn(),
-        TimeRemainingColumn(),
-        console=console,
-    )
-
-    playlist_progress = Progress(
-        TextColumn("[progress.description]{task.description}"),
-        BarColumn(),
-        MofNCompleteColumn(),
-        TimeElapsedColumn(),
-        TimeRemainingColumn(),
-        console=console,
-    )
-
-    song_progress = Progress(
-        TextColumn("[progress.description]{task.description}"),
-        BarColumn(),
-        MofNCompleteColumn(),
-        TimeElapsedColumn(),
-        TimeRemainingColumn(),
-        console=console,
-    )
-
-    # Initiale Panels
-    last_song_panel = create_last_song_panel(last_song_info)
-    current_song_panel = create_current_song_panel(current_song_info)
-
-    progress_group = Group(
-        Columns(
-            [
-                last_song_panel,
-                current_song_panel
-            ]
-        ),
-        Panel(overall_progress, title="Gesamtfortschritt"),
-        Panel(playlist_progress, title="Playlists"),
-        Panel(song_progress, title="Songs in Playlist")
-    )
-
-    with Live(progress_group, console=console, refresh_per_second=5) as live:
-        overall_task = overall_progress.add_task("Gesamtfortschritt", total=total_songs)
-        playlist_task = playlist_progress.add_task("Playlists", total=total_playlists)
-
-        for playlist_url, playlist_data in url_list.items():
-            # Update Playlist-Fortschritt
-            playlist_progress.update(playlist_task, advance=1, description=f"[blue]Playlist: {playlist_url}")
-            songs_in_playlist = playlist_data['song_urls']
-            song_task = song_progress.add_task("Songs in Playlist", total=len(songs_in_playlist))
-
-            for song_url in songs_in_playlist:
-                song_id = extract_song_id_from_url(song_url)
-
-                # Prüfen, ob der Song bereits bearbeitet wurde
-                if song_id in processed_song_ids:
-                    # Fortschrittsbalken aktualisieren
-                    song_progress.advance(song_task)
-                    overall_progress.advance(overall_task)
-                    continue
-
-                # Aktualisiere current_song_info
-                current_song_info['content'] = Text()
-                current_song_info['content'].append(f"[bold]Song URL:[/bold] {song_url}\n")
-                current_song_info['content'].append(f"[bold]Playlist URL:[/bold] {playlist_url}\n")
-
-                # Aktualisiere das aktuelle Song-Panel
-                current_song_panel = create_current_song_panel(current_song_info)
-
-                # Aktualisiere die Panels im progress_group
-                progress_group = Group(
-                    Columns(
-                        [
-                            last_song_panel,
-                            current_song_panel
-                        ]
-                    ),
-                    Panel(overall_progress, title="Gesamtfortschritt"),
-                    Panel(playlist_progress, title="Playlists"),
-                    Panel(song_progress, title="Songs in Playlist")
-                )
-
-                live.update(progress_group)
-
-                song_progress.update(song_task, description=f"[cyan]Song ID: {song_id}[/cyan]")
-                try:
-                    song_data = fetch_song_data(driver, song_url)
-                    song_title = song_data["title"] or f"Unbekannter_Titel_{int(time.time())}"
-                    song_id = extract_song_id_from_url(song_url)
-
-                    # Bereinigen und Speichern der Song-Daten
-                    song_file_name = clean_filename(f"{song_title}_{song_id}") + ".json"
-                    song_file_path = os.path.join(SONGS_DIR, song_file_name)
-                    save_json(song_data, song_file_path)
-
-                    # Aktualisiere die Liste der verarbeiteten Song-IDs
-                    processed_song_ids.add(song_id)
-
-                    # Aktualisiere Styles
-                    new_styles = [style for style in song_data['styles'] if style not in all_styles]
-                    if new_styles:
-                        all_styles.extend(new_styles)
-                        save_json(all_styles, STYLES_FILE)
-
-                    # Song-Styles-Mapping speichern mit song_url als Schlüssel
-                    song_styles_mapping[song_url] = song_data['styles']
-                    save_json(song_styles_mapping, SONG_STYLES_MAPPING_FILE)
-
-                    # Meta-Tags extrahieren
-                    meta_tags = extract_meta_tags(song_data['lyrics'])
-                    new_meta_tags = [tag for tag in meta_tags if tag not in all_meta_tags]
-                    if new_meta_tags:
-                        all_meta_tags.extend(new_meta_tags)
-                        save_json(all_meta_tags, META_TAGS_FILE)
-
-                    # Song-Meta-Mapping speichern mit song_url als Schlüssel
-                    song_meta_mapping[song_url] = meta_tags
-                    save_json(song_meta_mapping, SONG_META_MAPPING_FILE)
-
-                    # Fortschrittsbalken aktualisieren
-                    song_progress.advance(song_task)
-                    overall_progress.advance(overall_task)
-
-                    # Aktualisiere last_song_info
-                    last_song_info['content'] = Text()
-                    last_song_info['content'].append(f"[bold]URL:[/bold] {song_url}\n")
-                    last_song_info['content'].append(f"[bold]Titel:[/bold] {song_title}\n")
-                    last_song_info['content'].append("[bold]Aktualisierte Dateien:[/bold]\n")
-                    last_song_info['content'].append(f"- {song_file_path}\n")
-                    last_song_info['content'].append(f"- {STYLES_FILE}\n")
-                    last_song_info['content'].append(f"- {SONG_STYLES_MAPPING_FILE}\n")
-                    last_song_info['content'].append(f"- {META_TAGS_FILE}\n")
-                    last_song_info['content'].append(f"- {SONG_META_MAPPING_FILE}\n")
-
-                    # Aktualisiere das letzte Song-Panel
-                    last_song_panel = create_last_song_panel(last_song_info)
-
-                    # Aktualisiere die Panels im progress_group
-                    progress_group = Group(
-                        Columns(
-                            [
-                                last_song_panel,
-                                current_song_panel
-                            ]
-                        ),
-                        Panel(overall_progress, title="Gesamtfortschritt"),
-                        Panel(playlist_progress, title="Playlists"),
-                        Panel(song_progress, title="Songs in Playlist")
-                    )
-
-                    live.update(progress_group)
-
-                except Exception as e:
-                    # Fortschrittsbalken aktualisieren
-                    song_progress.advance(song_task)
-                    overall_progress.advance(overall_task)
-
-            # Entferne den Song-Task nach Abschluss der Playlist
-            song_progress.remove_task(song_task)
-
-        # Entferne den Playlist-Task nach Abschluss aller Playlists
-        playlist_progress.remove_task(playlist_task)
 
 # Song-Daten abrufen
 def fetch_song_data(driver, song_url):
@@ -350,37 +107,314 @@ def fetch_song_data(driver, song_url):
         "lyrics": lyrics
     }
 
-# Hauptmenü
-def main_menu():
-    console.print("[bold]Wählen Sie eine Option (1, 2, B):[/bold]")
-    console.print("1. URLs Scrapen")
-    console.print("2. Songs scrapen")
-    console.print("B. Beenden")
-    return input("Ihre Wahl: ")
+# Hauptklasse für die GUI-Anwendung
+class SunoScraperApp(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("Suno Scraper")
+        self.geometry("800x600")
 
-# Hauptfunktion
-def main():
-    # ChromeDriver Setup
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    service = Service(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=service, options=chrome_options)
+        # Initialisiere Variablen
+        self.playlists = {}
+        self.scraped_playlists = {}
+        self.driver = None
+        self.is_scraping = False
 
-    while True:
-        choice = main_menu()
-        if choice == "1":
-            playlists = scrape_playlists(driver)
-            save_json(playlists, SCRAPED_PLAYLISTS_FILE)
-        elif choice == "2":
-            scraped_playlists = load_json(SCRAPED_PLAYLISTS_FILE)
-            scrape_songs_from_url_list(scraped_playlists, driver)
-        elif choice == "B":
-            console.print("[bold red]Beenden...[/bold red]")
-            break
+        # Variablen für aktuelle und letzte Songinfos
+        self.last_song_info = {}
+        self.current_song_info = {}
+
+        # Erstelle Widgets
+        self.create_widgets()
+
+    def create_widgets(self):
+        # Rahmen für die Buttons oben
+        button_frame = tk.Frame(self)
+        button_frame.pack(side=tk.TOP, fill=tk.X)
+
+        # Buttons für Aktionen
+        scrape_playlists_button = ttk.Button(button_frame, text="URLs Scrapen", command=self.start_scrape_playlists)
+        scrape_playlists_button.pack(side=tk.LEFT, padx=5, pady=5)
+
+        scrape_songs_button = ttk.Button(button_frame, text="Songs Scrapen", command=self.start_scrape_songs)
+        scrape_songs_button.pack(side=tk.LEFT, padx=5, pady=5)
+
+        # Hauptframe für die zwei Spalten und Fortschrittsbalken
+        main_frame = tk.Frame(self)
+        main_frame.pack(expand=True, fill='both')
+        # Konfiguration für main_frame (falls erforderlich)
+        main_frame.columnconfigure(0, weight=1)
+        main_frame.rowconfigure(0, weight=1)
+
+        # Rahmen für die zwei Spalten (letzter und aktueller Song)
+        info_frame = tk.Frame(main_frame)
+        info_frame.pack(side=tk.TOP, fill='both', expand=True, padx=10, pady=10)
+
+        # Spalte für letzter Song
+        last_song_frame = tk.LabelFrame(info_frame, text="Letzter Song", padx=10, pady=10)
+        last_song_frame.pack(side=tk.LEFT, expand=True, fill='both')
+
+        self.last_song_text = tk.Text(last_song_frame, wrap=tk.WORD)
+        self.last_song_text.pack(expand=True, fill='both')
+
+        # Spalte für aktueller Song
+        current_song_frame = tk.LabelFrame(info_frame, text="Aktueller Song", padx=10, pady=10)
+        current_song_frame.pack(side=tk.LEFT, expand=True, fill='both')
+
+        self.current_song_text = tk.Text(current_song_frame, wrap=tk.WORD)
+        self.current_song_text.pack(expand=True, fill='both')
+
+        # Rahmen für Fortschrittsbalken
+        progress_frame = tk.Frame(main_frame)
+        progress_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=10)
+
+        # Fortschrittsbalken
+        self.overall_progress = ttk.Progressbar(progress_frame, orient='horizontal', mode='determinate')
+        self.overall_progress.pack(fill=tk.X, pady=5)
+        self.overall_label = ttk.Label(progress_frame, text="Gesamtfortschritt")
+        self.overall_label.pack()
+
+        self.playlist_progress = ttk.Progressbar(progress_frame, orient='horizontal', mode='determinate')
+        self.playlist_progress.pack(fill=tk.X, pady=5)
+        self.playlist_label = ttk.Label(progress_frame, text="Playlists")
+        self.playlist_label.pack()
+
+        self.song_progress = ttk.Progressbar(progress_frame, orient='horizontal', mode='determinate')
+        self.song_progress.pack(fill=tk.X, pady=5)
+        self.song_label = ttk.Label(progress_frame, text="Songs in Playlist")
+        self.song_label.pack()
+
+        # Ausgabe-Textfeld
+        self.output_text = scrolledtext.ScrolledText(self, wrap=tk.WORD, height=8)
+        self.output_text.pack(side=tk.BOTTOM, fill='both', padx=10, pady=10)
+
+    def log(self, message):
+        self.output_text.insert(tk.END, message + "\n")
+        self.output_text.see(tk.END)
+
+    def update_last_song_info(self):
+        self.last_song_text.delete('1.0', tk.END)
+        if self.last_song_info:
+            content = f"URL: {self.last_song_info.get('song_url', '')}\n"
+            content += f"Titel: {self.last_song_info.get('title', '')}\n"
+            content += f"Styles: {', '.join(self.last_song_info.get('styles', []))}\n"
+            if 'updated_files' in self.last_song_info:
+                content += "Aktualisierte Dateien:\n"
+                for file in self.last_song_info['updated_files']:
+                    content += f"- {file}\n"
+            self.last_song_text.insert(tk.END, content)
+
+    def update_current_song_info(self):
+        self.current_song_text.delete('1.0', tk.END)
+        if self.current_song_info:
+            content = f"Song URL: {self.current_song_info.get('song_url', '')}\n"
+            content += f"Playlist URL: {self.current_song_info.get('playlist_url', '')}\n"
+            self.current_song_text.insert(tk.END, content)
+
+    def start_scrape_playlists(self):
+        if not self.is_scraping:
+            threading.Thread(target=self.scrape_playlists_thread).start()
         else:
-            console.print("[red]Ungültige Auswahl. Bitte wählen Sie 1, 2 oder B.[/red]")
+            messagebox.showinfo("Info", "Ein Scraping-Prozess läuft bereits.")
 
-    driver.quit()
+    def scrape_playlists_thread(self):
+        self.is_scraping = True
+        self.log("Starte das Scrapen der Playlists...")
 
+        self.init_driver()
+        try:
+            self.playlists = self.scrape_playlists()
+            save_json(self.playlists, SCRAPED_PLAYLISTS_FILE)
+            self.log("Playlists wurden erfolgreich gescrapt und gespeichert.")
+        finally:
+            self.driver.quit()
+            self.driver = None
+            self.is_scraping = False
+
+    def start_scrape_songs(self):
+        if not self.is_scraping:
+            self.scraped_playlists = load_json(SCRAPED_PLAYLISTS_FILE)
+            if self.scraped_playlists:
+                threading.Thread(target=self.scrape_songs_thread).start()
+            else:
+                messagebox.showwarning("Warnung", "Keine Playlists gefunden. Bitte führen Sie zuerst 'URLs Scrapen' aus.")
+        else:
+            messagebox.showinfo("Info", "Ein Scraping-Prozess läuft bereits.")
+
+    def scrape_songs_thread(self):
+        self.is_scraping = True
+        self.log("Starte das Scrapen der Songs...")
+
+        self.init_driver()
+        try:
+            self.scrape_songs_from_url_list(self.scraped_playlists)
+            self.log("Songs wurden erfolgreich gescrapt und gespeichert.")
+        finally:
+            self.driver.quit()
+            self.driver = None
+            self.is_scraping = False
+
+    def init_driver(self):
+        self.log("Initialisiere Webdriver...")
+        chrome_options = Options()
+        chrome_options.add_argument("--headless")
+        service = Service(ChromeDriverManager().install())
+        self.driver = webdriver.Chrome(service=service, options=chrome_options)
+        self.log("Webdriver initialisiert.")
+
+    # Playlists scrapen und Song-Links sammeln
+    def scrape_playlists(self):
+        playlists = load_json(SCRAPED_PLAYLISTS_FILE)  # Vorhandene Daten laden
+        total_songs = 0
+        self.log("Öffne die Webseite suno.com...")
+        self.driver.get("https://suno.com")
+        time.sleep(5)  # Warte, bis die Seite geladen ist
+
+        self.log("Suche nach Playlist-Links auf der Startseite...")
+        playlist_links = self.driver.find_elements(By.XPATH, "//a[contains(@href, '/playlist/')]")
+        playlist_urls = list(set([link.get_attribute("href") for link in playlist_links]))  # Duplikate entfernen
+        self.log(f"Gefundene Playlist-Links: {len(playlist_urls)}")
+
+        self.playlist_progress['maximum'] = len(playlist_urls)
+        self.playlist_progress['value'] = 0
+
+        for playlist_url in playlist_urls:
+            self.driver.get(playlist_url)
+            time.sleep(5)  # Warte, bis die Playlist-Seite geladen ist
+
+            song_links = self.driver.find_elements(By.XPATH, "//a[contains(@href, '/song/')]")
+            song_urls = list(set([link.get_attribute("href") for link in song_links]))  # Duplikate entfernen
+
+            total_songs += len(song_urls)
+            playlists[playlist_url] = {"song_urls": song_urls}
+
+            # Fortschrittsbalken aktualisieren
+            self.playlist_progress['value'] += 1
+            self.playlist_label.config(text=f"Playlists: {self.playlist_progress['value']}/{len(playlist_urls)}")
+            self.log(f"Playlist gescrapt: {playlist_url} mit {len(song_urls)} Songs.")
+
+        self.log(f"Scraping abgeschlossen: {len(playlists)} Playlists und {total_songs} Songs wurden gefunden.")
+        self.playlist_progress['value'] = 0
+        return playlists
+
+    # Songinformationen scrapen und speichern
+    def scrape_songs_from_url_list(self, url_list):
+        all_styles = load_json(STYLES_FILE) or []
+        song_styles_mapping = load_json(SONG_STYLES_MAPPING_FILE) or {}
+        all_meta_tags = load_json(META_TAGS_FILE) or []
+        song_meta_mapping = load_json(SONG_META_MAPPING_FILE) or {}
+
+        total_playlists = len(url_list)
+        total_songs = sum(len(playlist_data['song_urls']) for playlist_data in url_list.values())
+
+        # Bereits verarbeitete Song-IDs abrufen
+        processed_song_ids = get_processed_song_ids()
+
+        self.overall_progress['maximum'] = total_songs
+        self.overall_progress['value'] = 0
+
+        self.playlist_progress['maximum'] = total_playlists
+        self.playlist_progress['value'] = 0
+
+        for playlist_url, playlist_data in url_list.items():
+            songs_in_playlist = playlist_data['song_urls']
+
+            self.playlist_progress['value'] += 1
+            self.playlist_label.config(text=f"Playlists: {self.playlist_progress['value']}/{total_playlists}")
+
+            self.song_progress['maximum'] = len(songs_in_playlist)
+            self.song_progress['value'] = 0
+
+            for song_url in songs_in_playlist:
+                song_id = extract_song_id_from_url(song_url)
+
+                # Aktualisiere current_song_info
+                self.current_song_info = {
+                    "song_url": song_url,
+                    "playlist_url": playlist_url
+                }
+                self.update_current_song_info()
+
+                # Prüfen, ob der Song bereits bearbeitet wurde
+                if song_id in processed_song_ids:
+                    self.log(f"Song bereits bearbeitet, überspringe: {song_url}")
+                    self.song_progress['value'] += 1
+                    self.overall_progress['value'] += 1
+                    continue
+
+                self.log(f"Scrape Song: {song_url}")
+                try:
+                    song_data = fetch_song_data(self.driver, song_url)
+                    song_title = song_data["title"] or f"Unbekannter_Titel_{int(time.time())}"
+                    song_id = extract_song_id_from_url(song_url)
+
+                    # Liste der aktualisierten Dateien initialisieren
+                    updated_files = []
+
+                    # Bereinigen und Speichern der Song-Daten
+                    song_file_name = clean_filename(f"{song_title}_{song_id}") + ".json"
+                    song_file_path = os.path.join(SONGS_DIR, song_file_name)
+                    save_json(song_data, song_file_path)
+                    updated_files.append(song_file_path)
+
+                    # Aktualisiere die Liste der verarbeiteten Song-IDs
+                    processed_song_ids.add(song_id)
+
+                    # Aktualisiere Styles
+                    new_styles = [style for style in song_data['styles'] if style not in all_styles]
+                    if new_styles:
+                        all_styles.extend(new_styles)
+                        save_json(all_styles, STYLES_FILE)
+                        updated_files.append(STYLES_FILE)
+
+                    # Song-Styles-Mapping speichern mit song_url als Schlüssel
+                    song_styles_mapping[song_url] = song_data['styles']
+                    save_json(song_styles_mapping, SONG_STYLES_MAPPING_FILE)
+                    updated_files.append(SONG_STYLES_MAPPING_FILE)
+
+                    # Meta-Tags extrahieren
+                    meta_tags = extract_meta_tags(song_data['lyrics'])
+                    new_meta_tags = [tag for tag in meta_tags if tag not in all_meta_tags]
+                    if new_meta_tags:
+                        all_meta_tags.extend(new_meta_tags)
+                        save_json(all_meta_tags, META_TAGS_FILE)
+                        updated_files.append(META_TAGS_FILE)
+
+                    # Song-Meta-Mapping speichern mit song_url als Schlüssel
+                    song_meta_mapping[song_url] = meta_tags
+                    save_json(song_meta_mapping, SONG_META_MAPPING_FILE)
+                    updated_files.append(SONG_META_MAPPING_FILE)
+
+                    # Aktualisiere last_song_info
+                    self.last_song_info = {
+                        "song_url": song_url,
+                        "title": song_title,
+                        "styles": song_data['styles'],
+                        "updated_files": updated_files
+                    }
+                    self.update_last_song_info()
+
+                    self.log(f"Song gespeichert: {song_title}")
+                except Exception as e:
+                    self.log(f"Fehler beim Abrufen der Song-Daten von {song_url}: {e}")
+                finally:
+                    # Fortschrittsbalken aktualisieren
+                    self.song_progress['value'] += 1
+                    self.song_label.config(text=f"Songs in Playlist: {self.song_progress['value']}/{self.song_progress['maximum']}")
+                    self.overall_progress['value'] += 1
+                    self.overall_label.config(text=f"Gesamtfortschritt: {self.overall_progress['value']}/{self.overall_progress['maximum']}")
+
+            # Reset des Song-Fortschrittsbalkens nach jeder Playlist
+            self.song_progress['value'] = 0
+
+        # Abschließende Updates
+        self.overall_progress['value'] = 0
+        self.playlist_progress['value'] = 0
+        self.song_progress['value'] = 0
+
+    # Weitere Methoden...
+
+# Hauptprogramm
 if __name__ == "__main__":
-    main()
+    app = SunoScraperApp()
+    app.mainloop()
