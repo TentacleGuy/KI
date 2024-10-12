@@ -124,16 +124,20 @@ class SunoScraperApp(tk.Tk):
         self.last_song_info = {}
         self.current_song_info = {}
 
+<<<<<<< HEAD
         # Konfiguration des Hauptfensters
         self.columnconfigure(0, weight=1)
         self.rowconfigure(1, weight=1)  # Zeile für main_frame
 
+=======
+>>>>>>> origin/main
         # Erstelle Widgets
         self.create_widgets()
 
     def create_widgets(self):
         # Rahmen für die Buttons oben
         button_frame = tk.Frame(self)
+<<<<<<< HEAD
         button_frame.grid(row=0, column=0, sticky="ew")
         button_frame.columnconfigure(0, weight=1)
         button_frame.columnconfigure(1, weight=1)
@@ -164,17 +168,51 @@ class SunoScraperApp(tk.Tk):
         last_song_frame.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
 
         self.last_song_text = tk.Text(last_song_frame, wrap=tk.WORD, height=10)
+=======
+        button_frame.pack(side=tk.TOP, fill=tk.X)
+
+        # Buttons für Aktionen
+        scrape_playlists_button = ttk.Button(button_frame, text="URLs Scrapen", command=self.start_scrape_playlists)
+        scrape_playlists_button.pack(side=tk.LEFT, padx=5, pady=5)
+
+        scrape_songs_button = ttk.Button(button_frame, text="Songs Scrapen", command=self.start_scrape_songs)
+        scrape_songs_button.pack(side=tk.LEFT, padx=5, pady=5)
+
+        # Hauptframe für die zwei Spalten und Fortschrittsbalken
+        main_frame = tk.Frame(self)
+        main_frame.pack(expand=True, fill='both')
+        # Konfiguration für main_frame (falls erforderlich)
+        main_frame.columnconfigure(0, weight=1)
+        main_frame.rowconfigure(0, weight=1)
+
+        # Rahmen für die zwei Spalten (letzter und aktueller Song)
+        info_frame = tk.Frame(main_frame)
+        info_frame.pack(side=tk.TOP, fill='both', expand=True, padx=10, pady=10)
+
+        # Spalte für letzter Song
+        last_song_frame = tk.LabelFrame(info_frame, text="Letzter Song", padx=10, pady=10)
+        last_song_frame.pack(side=tk.LEFT, expand=True, fill='both')
+
+        self.last_song_text = tk.Text(last_song_frame, wrap=tk.WORD)
+>>>>>>> origin/main
         self.last_song_text.pack(expand=True, fill='both')
 
         # Spalte für aktueller Song
         current_song_frame = tk.LabelFrame(info_frame, text="Aktueller Song", padx=10, pady=10)
+<<<<<<< HEAD
         current_song_frame.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
 
         self.current_song_text = tk.Text(current_song_frame, wrap=tk.WORD, height=10)
+=======
+        current_song_frame.pack(side=tk.LEFT, expand=True, fill='both')
+
+        self.current_song_text = tk.Text(current_song_frame, wrap=tk.WORD)
+>>>>>>> origin/main
         self.current_song_text.pack(expand=True, fill='both')
 
         # Rahmen für Fortschrittsbalken
         progress_frame = tk.Frame(main_frame)
+<<<<<<< HEAD
         progress_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=10)
 
         # Fortschrittsbalken
@@ -197,6 +235,29 @@ class SunoScraperApp(tk.Tk):
         self.output_text = scrolledtext.ScrolledText(main_frame, wrap=tk.WORD)
         self.output_text.grid(row=2, column=0, sticky="nsew", padx=10, pady=10)
         main_frame.rowconfigure(2, weight=1)  # Ausgabe-Textfeld expandiert
+=======
+        progress_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=10)
+
+        # Fortschrittsbalken
+        self.overall_progress = ttk.Progressbar(progress_frame, orient='horizontal', mode='determinate')
+        self.overall_progress.pack(fill=tk.X, pady=5)
+        self.overall_label = ttk.Label(progress_frame, text="Gesamtfortschritt")
+        self.overall_label.pack()
+
+        self.playlist_progress = ttk.Progressbar(progress_frame, orient='horizontal', mode='determinate')
+        self.playlist_progress.pack(fill=tk.X, pady=5)
+        self.playlist_label = ttk.Label(progress_frame, text="Playlists")
+        self.playlist_label.pack()
+
+        self.song_progress = ttk.Progressbar(progress_frame, orient='horizontal', mode='determinate')
+        self.song_progress.pack(fill=tk.X, pady=5)
+        self.song_label = ttk.Label(progress_frame, text="Songs in Playlist")
+        self.song_label.pack()
+
+        # Ausgabe-Textfeld
+        self.output_text = scrolledtext.ScrolledText(self, wrap=tk.WORD, height=8)
+        self.output_text.pack(side=tk.BOTTOM, fill='both', padx=10, pady=10)
+>>>>>>> origin/main
 
     def log(self, message):
         self.output_text.insert(tk.END, message + "\n")
@@ -422,6 +483,11 @@ class SunoScraperApp(tk.Tk):
         self.playlist_progress['value'] = 0
         self.song_progress['value'] = 0
 
+<<<<<<< HEAD
+=======
+    # Weitere Methoden...
+
+>>>>>>> origin/main
 # Hauptprogramm
 if __name__ == "__main__":
     app = SunoScraperApp()
