@@ -3,6 +3,7 @@ import os
 import json
 from threading import Lock
 
+
 # Ordner für die Song-JSON-Dateien
 SONGS_DIR = "songs"
 
