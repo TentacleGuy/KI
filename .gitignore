@@ -1,4 +1,5 @@
 /.gpt-runner
 /Scraper/songs
-/Scraper/*.json
+/Scraper/song_meta
 /venv
+/__pycache__

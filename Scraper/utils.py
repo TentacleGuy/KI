@@ -3,8 +3,14 @@ import os
 import json
 from threading import Lock
 from constants import *
+
+
+# Erstelle die Ordner, falls sie nicht vorhanden sind
 if not os.path.exists(SONGS_DIR):
     os.makedirs(SONGS_DIR)
+
+if not os.path.exists(SONG_META_DIR):  # Füge dies für den neuen song_meta-Ordner hinzu
+    os.makedirs(SONG_META_DIR)
 
 # Sperrmechanismus für Dateioperationen (Vermeidung von Konflikten bei parallelen Schreibvorgängen)
 file_lock = Lock()

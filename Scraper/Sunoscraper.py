@@ -82,11 +82,11 @@ class SunoScraperApp(tk.Tk):
 
         # Buttons für Aktionen
         ##Scrape URLs Button
-        scrape_playlists_button = ttk.Button(button_frame, text="URLs Scrapen", command=self.start_scrape_playlists)
+        scrape_playlists_button = ttk.Button(button_frame, text="URLs suchen", command=self.start_scrape_playlists)
         scrape_playlists_button.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
 
         ##scrape Songdata Button
-        scrape_songs_button = ttk.Button(button_frame, text="Songs Scrapen", command=self.start_scrape_songs)
+        scrape_songs_button = ttk.Button(button_frame, text="Songsdetails abrufen", command=self.start_scrape_songs)
         scrape_songs_button.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
 
         ##Beenden-Button
@@ -109,17 +109,17 @@ class SunoScraperApp(tk.Tk):
         info_frame.columnconfigure(1, weight=1, uniform="equal")
 
         # Spalte für Song URL und Playlist URL (linke Seite)
-        left_frame = tk.LabelFrame(info_frame, text="Song und Playlist URLs", padx=10, pady=10)
+        left_frame = tk.LabelFrame(info_frame, text="URLs", padx=10, pady=10)
         left_frame.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
 
-        self.song_url_label = tk.Label(left_frame, text="Song URL: ", wraplength=300, justify="left")
+        self.song_url_label = tk.Label(left_frame, text="Song: ", wraplength=300, justify="left")
         self.song_url_label.pack(anchor='w')
 
-        self.playlist_url_label = tk.Label(left_frame, text="Playlist URL: ", wraplength=300, justify="left")
+        self.playlist_url_label = tk.Label(left_frame, text="Playlist: ", wraplength=300, justify="left")
         self.playlist_url_label.pack(anchor='w')
 
         # Spalte für Titel und Styles (rechte Seite)
-        right_frame = tk.LabelFrame(info_frame, text="Titel und Styles", padx=10, pady=10)
+        right_frame = tk.LabelFrame(info_frame, text="Informationen", padx=10, pady=10)
         right_frame.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
 
         self.title_label = tk.Label(right_frame, text="Titel: ", wraplength=300, justify="left")
@@ -129,8 +129,8 @@ class SunoScraperApp(tk.Tk):
         self.styles_label.pack(anchor='w')
 
         # JSON Datei Status Indikatoren in einer Zeile zu je 25% Breite
-        status_frame = tk.Frame(main_frame)
-        status_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=10)
+        status_frame = tk.LabelFrame(main_frame, text="Aktualisierte Dateien", padx=10, pady=10)
+        status_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=10) 
         status_frame.columnconfigure(0, weight=1, uniform="equal")
         status_frame.columnconfigure(1, weight=1, uniform="equal")
         status_frame.columnconfigure(2, weight=1, uniform="equal")
@@ -253,10 +253,11 @@ class SunoScraperApp(tk.Tk):
             self.scrape_songs_from_url_list(self.scraped_playlists)
         
             # Fortschrittsbalken für Songs und Gesamtfortschritt aktualisieren
-            self.song_progress['value'] += 1
+            if self.song_progress['value'] < self.song_progress['maximum']:
+                self.song_progress['value'] += 1
             self.song_label.config(text=f"Songs in Playlist: {self.song_progress['value']}/{self.song_progress['maximum']}")
-
-            self.overall_progress['value'] += 1
+            if self.overall_progress['value'] < self.overall_progress['maximum']:
+                self.overall_progress['value'] += 1
             self.overall_label.config(text=f"Gesamtfortschritt: {self.overall_progress['value']}/{self.overall_progress['maximum']}")
             
             self.log("Songs wurden erfolgreich gescrapt und gespeichert.")
@@ -311,17 +312,19 @@ class SunoScraperApp(tk.Tk):
 
     # Songinformationen scrapen und speichern
     def scrape_songs_from_url_list(self, url_list):
+        """Verarbeitet die übergebene Liste von Playlists und ihren Songs."""
         all_styles = load_json(STYLES_FILE) or []
         song_styles_mapping = load_json(SONG_STYLES_MAPPING_FILE) or {}
         all_meta_tags = load_json(META_TAGS_FILE) or []
         song_meta_mapping = load_json(SONG_META_MAPPING_FILE) or {}
 
         total_playlists = len(url_list)
-        total_songs = sum(len(playlist_data['song_urls']) for playlist_data in url_list.values())
+        total_songs = sum(len(set(playlist_data['song_urls'])) for playlist_data in url_list.values())
 
-        # Bereits verarbeitete Song-IDs abrufen
+        # Verarbeitete Song-IDs abrufen
         processed_song_ids = get_processed_song_ids()
 
+        # Fortschrittsbalken initialisieren
         self.overall_progress['maximum'] = total_songs
         self.overall_progress['value'] = 0
 
@@ -331,9 +334,7 @@ class SunoScraperApp(tk.Tk):
         for playlist_url, playlist_data in url_list.items():
             songs_in_playlist = playlist_data['song_urls']
 
-            self.playlist_progress['value'] += 1
-            self.playlist_label.config(text=f"Playlists: {self.playlist_progress['value']}/{total_playlists}")
-
+            # Fortschrittsbalken für Songs in der Playlist initialisieren
             self.song_progress['maximum'] = len(songs_in_playlist)
             self.song_progress['value'] = 0
 
@@ -343,82 +344,50 @@ class SunoScraperApp(tk.Tk):
                 # Prüfen, ob der Song bereits bearbeitet wurde
                 if song_id in processed_song_ids:
                     self.log(f"Song bereits bearbeitet, überspringe: {song_url}")
-                    self.song_progress['value'] += 1
-                    self.overall_progress['value'] += 1
-                    self.update()  # Sofortige GUI-Aktualisierung
+
+                    # Fortschrittsbalken aktualisieren, wenn der Song übersprungen wird
+                    if self.song_progress['value'] < self.song_progress['maximum']:
+                        self.song_progress['value'] += 1
+                        self.song_label.config(text=f"Songs in Playlist: {self.song_progress['value']}/{self.song_progress['maximum']}")
+
+                    if self.overall_progress['value'] <= self.overall_progress['maximum']:
+                        self.overall_progress['value'] += 1
+                        self.overall_label.config(text=f"Gesamtfortschritt: {self.overall_progress['value']}/{self.overall_progress['maximum']}")
+
+                    self.update()  # GUI sofort aktualisieren
                     continue
 
+                # Scraping des Songs
                 self.log(f"Scrape Song: {song_url}")
-                try:
-                    song_data = fetch_song_data(self.driver, song_url)
-                    song_title = song_data["title"] or f"Unbekannter_Titel_{int(time.time())}"
-                    song_id = extract_song_id_from_url(song_url)
+                song_data = self.fetch_song_data(song_url)
 
-                    # Liste der aktualisierten Dateien initialisieren
-                    updated_files = []
+                # Speichern der Song-Daten
+                self.save_song_data(song_data)
 
-                    # Bereinigen und Speichern der Song-Daten
-                    song_file_name = clean_filename(f"{song_title}_{song_id}") + ".json"
-                    song_file_path = os.path.join(SONGS_DIR, song_file_name)
-                    save_json(song_data, song_file_path)
-                    updated_files.append(song_file_path)
-
-                    # Aktualisiere die Liste der verarbeiteten Song-IDs
-                    processed_song_ids.add(song_id)
-
-                    # Aktualisiere Styles
-                    new_styles = [style for style in song_data['styles'] if style not in all_styles]
-                    if new_styles:
-                        all_styles.extend(new_styles)
-                        save_json(all_styles, STYLES_FILE)
-                        updated_files.append(STYLES_FILE)
-
-                    # Song-Styles-Mapping speichern mit song_url als Schlüssel
-                    song_styles_mapping[song_url] = song_data['styles']
-                    save_json(song_styles_mapping, SONG_STYLES_MAPPING_FILE)
-                    updated_files.append(SONG_STYLES_MAPPING_FILE)
-
-                    # Meta-Tags extrahieren
-                    meta_tags = extract_meta_tags(song_data['lyrics'])
-                    new_meta_tags = [tag for tag in meta_tags if tag not in all_meta_tags]
-                    if new_meta_tags:
-                        all_meta_tags.extend(new_meta_tags)
-                        save_json(all_meta_tags, META_TAGS_FILE)
-                        updated_files.append(META_TAGS_FILE)
-
-                    # Song-Meta-Mapping speichern mit song_url als Schlüssel
-                    song_meta_mapping[song_url] = meta_tags
-                    save_json(song_meta_mapping, SONG_META_MAPPING_FILE)
-                    updated_files.append(SONG_META_MAPPING_FILE)
-
-                    # Aktualisiere last_song_info
-                    self.last_song_info = {
-                        "song_url": song_url,
-                        "playlist_url": playlist_url,  # Hier die Playlist-URL speichern
-                        "title": song_title,
-                        "styles": song_data['styles'],
-                        "updated_files": updated_files
-                    }
-                    self.update_last_song_info()
-
-                    self.log(f"Song gespeichert: {song_title}")
-                except Exception as e:
-                    self.log(f"Fehler beim Abrufen der Song-Daten von {song_url}: {e}")
-                finally:
-                    # Fortschrittsbalken aktualisieren
+                # Fortschrittsbalken aktualisieren
+                if self.song_progress['value'] < self.song_progress['maximum']:
                     self.song_progress['value'] += 1
                     self.song_label.config(text=f"Songs in Playlist: {self.song_progress['value']}/{self.song_progress['maximum']}")
+
+                if self.overall_progress['value'] < self.overall_progress['maximum']:
                     self.overall_progress['value'] += 1
                     self.overall_label.config(text=f"Gesamtfortschritt: {self.overall_progress['value']}/{self.overall_progress['maximum']}")
-                    self.update()  # Sofortige GUI-Aktualisierung
 
-            # Reset des Song-Fortschrittsbalkens nach jeder Playlist
-            self.song_progress['value'] = 0
+                self.update()  # GUI sofort aktualisieren
 
-        # Abschließende Updates
-        self.overall_progress['value'] = 0
-        self.playlist_progress['value'] = 0
-        self.song_progress['value'] = 0
+            self.log(f"Playlist abgeschlossen: {playlist_url}")
+
+            # Playlist-Fortschritt aktualisieren
+            self.playlist_progress['value'] += 1
+            self.playlist_label.config(text=f"Playlists: {self.playlist_progress['value']}/{total_playlists}")
+            self.update()  # Aktualisiere die GUI
+
+        #Fortschrittsbalken nach Abschluss zurücksetzen
+        #self.song_progress['value'] = 0
+        #self.playlist_progress['value'] = 0
+        #self.overall_progress['value'] = 0
+        #self.update()  # GUI sofort aktualisieren
+
 
 # Hauptprogramm
 if __name__ == "__main__":
