@@ -1,3 +1,4 @@
 /.gpt-runner
 /Scraper/songs
+/Scraper/*.json
 /venv
