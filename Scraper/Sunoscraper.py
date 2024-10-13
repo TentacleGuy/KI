@@ -76,16 +76,23 @@ class SunoScraperApp(tk.Tk):
         # Rahmen für die Buttons oben
         button_frame = tk.Frame(self)
         button_frame.grid(row=0, column=0, sticky="ew")
-        button_frame.columnconfigure(0, weight=1)
-        button_frame.columnconfigure(1, weight=1)
+        button_frame.columnconfigure(0, weight=1) #URL Scraping Button
+        button_frame.columnconfigure(1, weight=1) #Songdata Scraping Button
+        button_frame.columnconfigure(2, weight=1) #Beenden Button
 
         # Buttons für Aktionen
+        ##Scrape URLs Button
         scrape_playlists_button = ttk.Button(button_frame, text="URLs Scrapen", command=self.start_scrape_playlists)
         scrape_playlists_button.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
 
+        ##scrape Songdata Button
         scrape_songs_button = ttk.Button(button_frame, text="Songs Scrapen", command=self.start_scrape_songs)
         scrape_songs_button.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
 
+        ##Beenden-Button
+        quit_button = ttk.Button(button_frame, text="Beenden", command=self.quit_app)
+        quit_button.grid(row=0, column=2, padx=5, pady=5, sticky="ew")
+        
         # Hauptframe für die zwei Spalten und Fortschrittsbalken
         main_frame = tk.Frame(self)
         main_frame.grid(row=1, column=0, sticky="nsew")
@@ -168,6 +175,17 @@ class SunoScraperApp(tk.Tk):
         self.output_text.grid(row=3, column=0, sticky="nsew", padx=10, pady=10)
         main_frame.rowconfigure(3, weight=1)  # Ausgabe-Textfeld expandiert
 
+    def quit_app(self):
+        # Beende Scraping-Prozesse, falls sie laufen
+        if self.is_scraping:
+            self.is_scraping = False  # Setzt den Scraping-Status auf False, um die Schleifen zu beenden
+        # Falls der Webdriver läuft, schließe ihn
+        if self.driver:
+            self.driver.quit()  # Beende den Webdriver
+
+        # Schließe die Anwendung
+        self.destroy()  # Schließt das Hauptfenster und beendet die App
+
     def log(self, message):
         self.output_text.insert(tk.END, message + "\n")
         self.output_text.see(tk.END)
@@ -190,7 +208,6 @@ class SunoScraperApp(tk.Tk):
         self.styles_mapping_status_label.config(bg="green" if 'song_styles_mapping.json' in updated_files else "red")
 
         self.update()  # Sofortige GUI-Aktualisierung
-
 
     def start_scrape_playlists(self):
         if not self.is_scraping:
