@@ -2217,5 +2217,31 @@
         "electricguitar",
         "romantic",
         "ambient"
+    ],
+    "https://suno.com/song/c5112369-2e6c-4728-b885-3bc2e6edfd18": [
+        "softhardrockjuvenilromantic",
+        "electricguitar"
+    ],
+    "https://suno.com/song/e172ffbd-d618-4ef6-9a4f-605e5e9dbbce": [
+        "rockenespa\u00f1ol",
+        "guitar",
+        "rockpowerballad",
+        "metal",
+        "heavymetal"
+    ],
+    "https://suno.com/song/a520d22b-80ac-472d-a339-c0079c551174": [
+        "rockenespa\u00f1ol",
+        "hardrock",
+        "guitar"
+    ],
+    "https://suno.com/song/b75d46e7-ac0e-42d0-b12e-bce824db4087": [
+        "circus",
+        "darkwave"
+    ],
+    "https://suno.com/song/512dc812-6b6e-424c-b1c2-02c35013a43d": [
+        "surfrockjuvenil",
+        "fastdarkcountry",
+        "metal",
+        "aggressive"
     ]
 }

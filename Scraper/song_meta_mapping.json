@@ -2559,5 +2559,49 @@
         "Coro",
         "Coro Final",
         "Fin"
+    ],
+    "https://suno.com/song/c5112369-2e6c-4728-b885-3bc2e6edfd18": [
+        "Verso 1",
+        "Pre-Estribillo",
+        "Estribillo",
+        "Verso 2",
+        "Pre-Estribillo",
+        "Estribillo",
+        "Puente",
+        "\u00daltimo Estribillo",
+        "Outro"
+    ],
+    "https://suno.com/song/e172ffbd-d618-4ef6-9a4f-605e5e9dbbce": [
+        "Verso 1",
+        "Pre-Coro",
+        "Coro",
+        "Verso 2",
+        "Coro",
+        "Puente",
+        "Coro Final",
+        "Outro"
+    ],
+    "https://suno.com/song/a520d22b-80ac-472d-a339-c0079c551174": [
+        "Verso 1",
+        "Pre-Coro",
+        "Coro",
+        "Verso 2",
+        "Pre-Coro",
+        "Coro",
+        "Puente",
+        "Coro Final",
+        "Outro"
+    ],
+    "https://suno.com/song/b75d46e7-ac0e-42d0-b12e-bce824db4087": [],
+    "https://suno.com/song/512dc812-6b6e-424c-b1c2-02c35013a43d": [
+        "Vero 1:",
+        "Verso 2:",
+        "Coro:",
+        "Vero 3:",
+        "Coro:",
+        "Puente:",
+        "Verso 4:",
+        "Coro:",
+        "End"
     ]
 }
