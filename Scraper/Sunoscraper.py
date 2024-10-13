@@ -115,17 +115,18 @@ class SunoScraperApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Suno Scraper")
-        self.geometry("800x600")
+        self.geometry("1024x768")
 
         # Initialisiere Variablen
         self.playlists = {}
         self.scraped_playlists = {}
         self.driver = None
         self.is_scraping = False
+        self.is_paused = False
+        self.pause_condition = threading.Condition()
 
         # Variablen für aktuelle und letzte Songinfos
         self.last_song_info = {}
-        self.current_song_info = {}
 
         # Konfiguration des Hauptfensters
         self.columnconfigure(0, weight=1)
@@ -140,6 +141,8 @@ class SunoScraperApp(tk.Tk):
         button_frame.grid(row=0, column=0, sticky="ew")
         button_frame.columnconfigure(0, weight=1)
         button_frame.columnconfigure(1, weight=1)
+        button_frame.columnconfigure(2, weight=1)
+        button_frame.columnconfigure(3, weight=1)
 
         # Buttons für Aktionen
         scrape_playlists_button = ttk.Button(button_frame, text="URLs Scrapen", command=self.start_scrape_playlists)
@@ -148,49 +151,86 @@ class SunoScraperApp(tk.Tk):
         scrape_songs_button = ttk.Button(button_frame, text="Songs Scrapen", command=self.start_scrape_songs)
         scrape_songs_button.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
 
+        # Pause/Fortsetzen-Button
+        self.pause_button = ttk.Button(button_frame, text="Pause", command=self.pause_scraping)
+        self.pause_button.grid(row=0, column=2, padx=5, pady=5, sticky="ew")
+
+        # Beenden-Button
+        quit_button = ttk.Button(button_frame, text="Beenden", command=self.quit_app)
+        quit_button.grid(row=0, column=3, padx=5, pady=5, sticky="ew")
+
         # Hauptframe für die zwei Spalten und Fortschrittsbalken
         main_frame = tk.Frame(self)
         main_frame.grid(row=1, column=0, sticky="nsew")
         main_frame.columnconfigure(0, weight=1)
         main_frame.rowconfigure(0, weight=0)  # Info frame
-        main_frame.rowconfigure(1, weight=0)  # Progress frame
-        main_frame.rowconfigure(2, weight=1)  # Output text
+        main_frame.rowconfigure(1, weight=0)  # Status frame
+        main_frame.rowconfigure(2, weight=0)  # Progress frame
+        main_frame.rowconfigure(3, weight=1)  # Output text
 
-        # Rahmen für die zwei Spalten (letzter und aktueller Song)
+        # Rahmen für die zwei Spalten (letzter Song)
         info_frame = tk.Frame(main_frame)
         info_frame.grid(row=0, column=0, sticky="ew", padx=10, pady=10)
-        info_frame.columnconfigure(0, weight=1)
-        info_frame.columnconfigure(1, weight=1)
+        info_frame.columnconfigure(0, weight=1, uniform="equal")
+        info_frame.columnconfigure(1, weight=1, uniform="equal")
 
-        # Spalte für letzter Song
-        last_song_frame = tk.LabelFrame(info_frame, text="Letzter Song", padx=10, pady=10)
-        last_song_frame.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+        # Spalte für Song URL und Playlist URL (linke Seite)
+        left_frame = tk.LabelFrame(info_frame, text="Song und Playlist URLs", padx=10, pady=10)
+        left_frame.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
 
-        self.last_song_text = tk.Text(last_song_frame, wrap=tk.WORD, height=10)
-        self.last_song_text.pack(expand=True, fill='both')
+        self.song_url_label = tk.Label(left_frame, text="Song URL: ", wraplength=300, justify="left")
+        self.song_url_label.pack(anchor='w')
 
-        # Spalte für aktueller Song
-        current_song_frame = tk.LabelFrame(info_frame, text="Aktueller Song", padx=10, pady=10)
-        current_song_frame.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
+        self.playlist_url_label = tk.Label(left_frame, text="Playlist URL: ", wraplength=300, justify="left")
+        self.playlist_url_label.pack(anchor='w')
 
-        self.current_song_text = tk.Text(current_song_frame, wrap=tk.WORD, height=10)
-        self.current_song_text.pack(expand=True, fill='both')
+        # Spalte für Titel und Styles (rechte Seite)
+        right_frame = tk.LabelFrame(info_frame, text="Titel und Styles", padx=10, pady=10)
+        right_frame.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
 
-        # Rahmen für Fortschrittsbalken
+        self.title_label = tk.Label(right_frame, text="Titel: ", wraplength=300, justify="left")
+        self.title_label.pack(anchor='w')
+
+        self.styles_label = tk.Label(right_frame, text="Styles: ", wraplength=300, justify="left")
+        self.styles_label.pack(anchor='w')
+
+        # JSON Datei Status Indikatoren in einer Zeile zu je 25% Breite
+        status_frame = tk.Frame(main_frame)
+        status_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=10)
+        status_frame.columnconfigure(0, weight=1, uniform="equal")
+        status_frame.columnconfigure(1, weight=1, uniform="equal")
+        status_frame.columnconfigure(2, weight=1, uniform="equal")
+        status_frame.columnconfigure(3, weight=1, uniform="equal")
+
+        self.meta_status_label = tk.Label(status_frame, text="All Meta", bg="red", width=20)
+        self.meta_status_label.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
+
+        self.styles_status_label = tk.Label(status_frame, text="All Styles", bg="red", width=20)
+        self.styles_status_label.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+
+        self.meta_mapping_status_label = tk.Label(status_frame, text="Meta Mapping", bg="red", width=20)
+        self.meta_mapping_status_label.grid(row=0, column=2, padx=5, pady=5, sticky="ew")
+
+        self.styles_mapping_status_label = tk.Label(status_frame, text="Styles Mapping", bg="red", width=20)
+        self.styles_mapping_status_label.grid(row=0, column=3, padx=5, pady=5, sticky="ew")
+
+        # Fortschrittsbalken-Rahmen
         progress_frame = tk.Frame(main_frame)
-        progress_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=10)
+        progress_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=10)
 
-        # Fortschrittsbalken
+        # Gesamtfortschritt
         self.overall_label = ttk.Label(progress_frame, text="Gesamtfortschritt")
         self.overall_label.pack()
         self.overall_progress = ttk.Progressbar(progress_frame, orient='horizontal', mode='determinate')
         self.overall_progress.pack(fill=tk.X, pady=5)
 
+        # Fortschrittsbalken für Playlists
         self.playlist_label = ttk.Label(progress_frame, text="Playlists")
         self.playlist_label.pack()
         self.playlist_progress = ttk.Progressbar(progress_frame, orient='horizontal', mode='determinate')
         self.playlist_progress.pack(fill=tk.X, pady=5)
 
+        # Fortschrittsbalken für Songs in der Playlist
         self.song_label = ttk.Label(progress_frame, text="Songs in Playlist")
         self.song_label.pack()
         self.song_progress = ttk.Progressbar(progress_frame, orient='horizontal', mode='determinate')
@@ -198,8 +238,8 @@ class SunoScraperApp(tk.Tk):
 
         # Ausgabe-Textfeld
         self.output_text = scrolledtext.ScrolledText(main_frame, wrap=tk.WORD)
-        self.output_text.grid(row=2, column=0, sticky="nsew", padx=10, pady=10)
-        main_frame.rowconfigure(2, weight=1)  # Ausgabe-Textfeld expandiert
+        self.output_text.grid(row=3, column=0, sticky="nsew", padx=10, pady=10)
+        main_frame.rowconfigure(3, weight=1)  # Ausgabe-Textfeld expandiert
 
     def log(self, message):
         self.output_text.insert(tk.END, message + "\n")
@@ -207,28 +247,26 @@ class SunoScraperApp(tk.Tk):
         self.update()  # Hier wird die GUI sofort aktualisiert
 
     def update_last_song_info(self):
-        self.last_song_text.delete('1.0', tk.END)
-        if self.last_song_info:
-            content = f"URL: {self.last_song_info.get('song_url', '')}\n"
-            content += f"Titel: {self.last_song_info.get('title', '')}\n"
-            content += f"Styles: {', '.join(self.last_song_info.get('styles', []))}\n"
-            if 'updated_files' in self.last_song_info:
-                content += "Aktualisierte Dateien:\n"
-                for file in self.last_song_info['updated_files']:
-                    content += f"- {file}\n"
-            self.last_song_text.insert(tk.END, content)
-        self.update()  # Sofortige GUI-Aktualisierung
+        # Song- und Playlist-URL-Labels aktualisieren
+        self.song_url_label.config(text=f"Song URL: {self.last_song_info.get('song_url', '')}")
+        self.playlist_url_label.config(text=f"Playlist URL: {self.last_song_info.get('playlist_url', '')}")
+        
+        # Titel und Styles aktualisieren
+        self.title_label.config(text=f"Titel: {self.last_song_info.get('title', '')}")
+        self.styles_label.config(text=f"Styles: {', '.join(self.last_song_info.get('styles', []))}")
+        
+        # JSON-Statuslabels aktualisieren
+        updated_files = self.last_song_info.get('updated_files', [])
+        self.meta_status_label.config(bg="green" if 'all_meta_tags.json' in updated_files else "red")
+        self.styles_status_label.config(bg="green" if 'all_styles.json' in updated_files else "red")
+        self.meta_mapping_status_label.config(bg="green" if 'song_meta_mapping.json' in updated_files else "red")
+        self.styles_mapping_status_label.config(bg="green" if 'song_styles_mapping.json' in updated_files else "red")
 
-    def update_current_song_info(self):
-        self.current_song_text.delete('1.0', tk.END)
-        if self.current_song_info:
-            content = f"Song URL: {self.current_song_info.get('song_url', '')}\n"
-            content += f"Playlist URL: {self.current_song_info.get('playlist_url', '')}\n"
-            self.current_song_text.insert(tk.END, content)
         self.update()  # Sofortige GUI-Aktualisierung
 
     def start_scrape_playlists(self):
         if not self.is_scraping:
+            self.is_scraping = True
             threading.Thread(target=self.scrape_playlists_thread).start()
         else:
             messagebox.showinfo("Info", "Ein Scraping-Prozess läuft bereits.")
@@ -251,6 +289,7 @@ class SunoScraperApp(tk.Tk):
         if not self.is_scraping:
             self.scraped_playlists = load_json(SCRAPED_PLAYLISTS_FILE)
             if self.scraped_playlists:
+                self.is_scraping = True
                 threading.Thread(target=self.scrape_songs_thread).start()
             else:
                 messagebox.showwarning("Warnung", "Keine Playlists gefunden. Bitte führen Sie zuerst 'URLs Scrapen' aus.")
@@ -269,6 +308,28 @@ class SunoScraperApp(tk.Tk):
             self.driver.quit()
             self.driver = None
             self.is_scraping = False
+
+    def quit_app(self):
+        if self.is_scraping:
+            self.is_scraping = False
+        if self.driver:
+            self.driver.quit()  # Beendet den Webdriver
+        self.destroy()  # Beendet die App
+
+    def pause_scraping(self):
+        if not self.is_paused:
+            self.is_paused = True
+            self.pause_button.config(text="Fortsetzen", command=self.resume_scraping)
+        else:
+            self.resume_scraping()
+
+    def resume_scraping(self):
+        self.is_paused = False
+        self.pause_button.config(text="Pause", command=self.pause_scraping)
+
+        # Die pausierte Stelle wird fortgesetzt
+        with self.pause_condition:
+            self.pause_condition.notify_all()
 
     def init_driver(self):
         self.log("Initialisiere Webdriver...")
@@ -345,13 +406,6 @@ class SunoScraperApp(tk.Tk):
             for song_url in songs_in_playlist:
                 song_id = extract_song_id_from_url(song_url)
 
-                # Aktualisiere current_song_info
-                self.current_song_info = {
-                    "song_url": song_url,
-                    "playlist_url": playlist_url
-                }
-                self.update_current_song_info()
-
                 # Prüfen, ob der Song bereits bearbeitet wurde
                 if song_id in processed_song_ids:
                     self.log(f"Song bereits bearbeitet, überspringe: {song_url}")
@@ -406,6 +460,7 @@ class SunoScraperApp(tk.Tk):
                     # Aktualisiere last_song_info
                     self.last_song_info = {
                         "song_url": song_url,
+                        "playlist_url": playlist_url,  # Hier die Playlist-URL speichern
                         "title": song_title,
                         "styles": song_data['styles'],
                         "updated_files": updated_files
