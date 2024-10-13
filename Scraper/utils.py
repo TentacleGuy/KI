@@ -2,21 +2,9 @@ import re
 import os
 import json
 from threading import Lock
-
-
-# Ordner für die Song-JSON-Dateien
-SONGS_DIR = "songs"
-
+from constants import *
 if not os.path.exists(SONGS_DIR):
     os.makedirs(SONGS_DIR)
-
-# JSON Datei Pfade
-SCRAPED_PLAYLISTS_FILE = "auto_playlists_and_songs.json"
-MANUAL_PLAYLISTS_FILE = "manual_playlists_and_songs.json"
-STYLES_FILE = "all_styles.json"
-SONG_STYLES_MAPPING_FILE = "song_styles_mapping.json"
-META_TAGS_FILE = "all_meta_tags.json"
-SONG_META_MAPPING_FILE = "song_meta_mapping.json"
 
 # Sperrmechanismus für Dateioperationen (Vermeidung von Konflikten bei parallelen Schreibvorgängen)
 file_lock = Lock()
@@ -60,3 +48,4 @@ def get_processed_song_ids():
             song_id = name.split('_')[-1]  # Song-ID extrahieren (letzter Unterstrich)
             song_ids.add(song_id)
     return song_ids
+

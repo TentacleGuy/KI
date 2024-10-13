@@ -13,69 +13,8 @@ from webdriver_manager.chrome import ChromeDriverManager
 import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox
 from threading import Lock
-
-# Ordner für die Song-JSON-Dateien
-SONGS_DIR = "songs"
-
-if not os.path.exists(SONGS_DIR):
-    os.makedirs(SONGS_DIR)
-
-# JSON Datei Pfade
-SCRAPED_PLAYLISTS_FILE = "auto_playlists_and_songs.json"
-MANUAL_PLAYLISTS_FILE = "manual_playlists_and_songs.json"
-STYLES_FILE = "all_styles.json"
-SONG_STYLES_MAPPING_FILE = "song_styles_mapping.json"
-META_TAGS_FILE = "all_meta_tags.json"
-SONG_META_MAPPING_FILE = "song_meta_mapping.json"
-
-# Sperrmechanismus für Dateioperationen (Vermeidung von Konflikten bei parallelen Schreibvorgängen)
-file_lock = Lock()
-
-# Lade JSON Datei, falls vorhanden
-def load_json(file_path):
-    """Lädt eine bestehende JSON-Datei, falls vorhanden."""
-    if os.path.exists(file_path):
-        with open(file_path, 'r', encoding='utf-8') as file:
-            return json.load(file)
-    return {}
-
-# Speichern der JSON Datei mit einem Sperrmechanismus, um Dateikonflikte zu vermeiden
-def save_json(data, file_path):
-    """Speichert die JSON-Datei unter Verwendung eines Sperrmechanismus."""
-    with file_lock:
-        with open(file_path, 'w', encoding="utf-8") as file:
-            json.dump(data, file, indent=4)
-
-# Bereinige ungültige Zeichen im Dateinamen
-def clean_filename(filename):
-    """Bereinigt den Dateinamen von ungültigen Zeichen."""
-    filename = re.sub(r'[^A-Za-z0-9 _\-.]', '', filename)
-    filename = re.sub(r'\s+', ' ', filename).strip()
-    return filename
-
-# Meta-Tags extrahieren
-def extract_meta_tags(lyrics):
-    """Extrahiert Meta-Tags aus dem Songtext."""
-    return re.findall(r'\[(.*?)\]', lyrics)
-
-# Song-ID aus der URL extrahieren
-def extract_song_id_from_url(song_url):
-    """Extrahiert die kryptische Song-ID aus der URL."""
-    match = re.search(r'/song/([^/]+)', song_url)
-    if match:
-        return match.group(1)
-    return "unbekannte_id"
-
-# Verarbeitete Song-IDs aus den Dateinamen im 'songs'-Ordner abrufen
-def get_processed_song_ids():
-    """Gibt ein Set der Song-IDs zurück, die bereits im 'songs'-Ordner vorhanden sind."""
-    song_ids = set()
-    for filename in os.listdir(SONGS_DIR):
-        if filename.endswith('.json'):
-            name = filename[:-5]  # Dateinamen ohne Erweiterung
-            song_id = name.split('_')[-1]  # Song-ID extrahieren (letzter Unterstrich)
-            song_ids.add(song_id)
-    return song_ids
+from utils import *
+from constants import *
 
 # Song-Daten abrufen
 def fetch_song_data(driver, song_url):
@@ -115,15 +54,13 @@ class SunoScraperApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Suno Scraper")
-        self.geometry("1024x768")
+        self.geometry("800x600")
 
         # Initialisiere Variablen
         self.playlists = {}
         self.scraped_playlists = {}
         self.driver = None
         self.is_scraping = False
-        self.is_paused = False
-        self.pause_condition = threading.Condition()
 
         # Variablen für aktuelle und letzte Songinfos
         self.last_song_info = {}
@@ -141,8 +78,6 @@ class SunoScraperApp(tk.Tk):
         button_frame.grid(row=0, column=0, sticky="ew")
         button_frame.columnconfigure(0, weight=1)
         button_frame.columnconfigure(1, weight=1)
-        button_frame.columnconfigure(2, weight=1)
-        button_frame.columnconfigure(3, weight=1)
 
         # Buttons für Aktionen
         scrape_playlists_button = ttk.Button(button_frame, text="URLs Scrapen", command=self.start_scrape_playlists)
@@ -150,14 +85,6 @@ class SunoScraperApp(tk.Tk):
 
         scrape_songs_button = ttk.Button(button_frame, text="Songs Scrapen", command=self.start_scrape_songs)
         scrape_songs_button.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
-
-        # Pause/Fortsetzen-Button
-        self.pause_button = ttk.Button(button_frame, text="Pause", command=self.pause_scraping)
-        self.pause_button.grid(row=0, column=2, padx=5, pady=5, sticky="ew")
-
-        # Beenden-Button
-        quit_button = ttk.Button(button_frame, text="Beenden", command=self.quit_app)
-        quit_button.grid(row=0, column=3, padx=5, pady=5, sticky="ew")
 
         # Hauptframe für die zwei Spalten und Fortschrittsbalken
         main_frame = tk.Frame(self)
@@ -264,9 +191,9 @@ class SunoScraperApp(tk.Tk):
 
         self.update()  # Sofortige GUI-Aktualisierung
 
+
     def start_scrape_playlists(self):
         if not self.is_scraping:
-            self.is_scraping = True
             threading.Thread(target=self.scrape_playlists_thread).start()
         else:
             messagebox.showinfo("Info", "Ein Scraping-Prozess läuft bereits.")
@@ -280,6 +207,11 @@ class SunoScraperApp(tk.Tk):
             self.playlists = self.scrape_playlists()
             save_json(self.playlists, SCRAPED_PLAYLISTS_FILE)
             self.log("Playlists wurden erfolgreich gescrapt und gespeichert.")
+            
+            # Fortschrittsbalken für Playlists aktualisieren
+            self.playlist_progress['value'] += 1
+            self.playlist_label.config(text=f"Playlists: {self.playlist_progress['value']}/{self.playlist_progress['maximum']}")
+            
         finally:
             self.driver.quit()
             self.driver = None
@@ -289,7 +221,6 @@ class SunoScraperApp(tk.Tk):
         if not self.is_scraping:
             self.scraped_playlists = load_json(SCRAPED_PLAYLISTS_FILE)
             if self.scraped_playlists:
-                self.is_scraping = True
                 threading.Thread(target=self.scrape_songs_thread).start()
             else:
                 messagebox.showwarning("Warnung", "Keine Playlists gefunden. Bitte führen Sie zuerst 'URLs Scrapen' aus.")
@@ -303,33 +234,19 @@ class SunoScraperApp(tk.Tk):
         self.init_driver()
         try:
             self.scrape_songs_from_url_list(self.scraped_playlists)
+        
+            # Fortschrittsbalken für Songs und Gesamtfortschritt aktualisieren
+            self.song_progress['value'] += 1
+            self.song_label.config(text=f"Songs in Playlist: {self.song_progress['value']}/{self.song_progress['maximum']}")
+
+            self.overall_progress['value'] += 1
+            self.overall_label.config(text=f"Gesamtfortschritt: {self.overall_progress['value']}/{self.overall_progress['maximum']}")
+            
             self.log("Songs wurden erfolgreich gescrapt und gespeichert.")
         finally:
             self.driver.quit()
             self.driver = None
             self.is_scraping = False
-
-    def quit_app(self):
-        if self.is_scraping:
-            self.is_scraping = False
-        if self.driver:
-            self.driver.quit()  # Beendet den Webdriver
-        self.destroy()  # Beendet die App
-
-    def pause_scraping(self):
-        if not self.is_paused:
-            self.is_paused = True
-            self.pause_button.config(text="Fortsetzen", command=self.resume_scraping)
-        else:
-            self.resume_scraping()
-
-    def resume_scraping(self):
-        self.is_paused = False
-        self.pause_button.config(text="Pause", command=self.pause_scraping)
-
-        # Die pausierte Stelle wird fortgesetzt
-        with self.pause_condition:
-            self.pause_condition.notify_all()
 
     def init_driver(self):
         self.log("Initialisiere Webdriver...")
