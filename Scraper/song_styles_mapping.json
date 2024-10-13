@@ -2164,5 +2164,58 @@
         "nostalgic70sdiscoclub",
         "ClearVocals",
         "female"
+    ],
+    "https://suno.com/song/bd4e1581-b4a8-429b-a68a-cd5d60d12a15": [
+        "soulfulr&bsmooth"
+    ],
+    "https://suno.com/song/143776ec-d6b4-4cc5-a735-d9ceb8b5e3d4": [
+        "rhodes",
+        "smoothjazz",
+        "lounge"
+    ],
+    "https://suno.com/song/ef1ff67a-68aa-46b7-95e1-a2fd921856f9": [
+        "electricguitar",
+        "symphonicmetal",
+        "heavy",
+        "metalcore"
+    ],
+    "https://suno.com/song/10a96ba7-29e4-408e-a013-a72dd71cdeac": [
+        "glitchcore",
+        "edm"
+    ],
+    "https://suno.com/song/f7bd1428-e23e-4a68-881e-3246e00bbec8": [
+        "acousticguitar",
+        "bluesguitar",
+        "mellow",
+        "calming"
+    ],
+    "https://suno.com/song/e48c0ee8-24c8-459b-8d91-469dbd6fc3a5": [
+        "post-indietronicapost-instrumentalcellorevival"
+    ],
+    "https://suno.com/song/0a0c4709-7004-40c0-905d-5be957f582f7": [
+        "funk",
+        "rhodes",
+        "soul"
+    ],
+    "https://suno.com/song/dc6b47c3-74fc-4a03-8cdf-dcc522f307bb": [
+        "midwestemo",
+        "emo-pop",
+        "mathpop",
+        "melodic"
+    ],
+    "https://suno.com/song/a50f6c2e-24d5-4879-a1ed-ec08e7add18a": [
+        "rockenespa\u00f1ol",
+        "metal",
+        "heavymetal"
+    ],
+    "https://suno.com/song/ef407381-ec7a-4763-8c2d-59b9448dd2f5": [
+        "hardrockenespa\u00f1ol",
+        "electricguitar"
+    ],
+    "https://suno.com/song/1bc8d87e-d01a-42db-a684-0f5198e7f3f6": [
+        "hardrockenespa\u00f1ol",
+        "electricguitar",
+        "romantic",
+        "ambient"
     ]
 }
