@@ -1,6 +1,6 @@
-/.gpt-runner
-/Scraper/songs
-/Scraper/song_meta/
+.gpt-runner/
+songs/
+song_meta/
 /venv
-*/__pycache__/
-*/trainingdata.json
+__pycache__/
+trainingdata.json
