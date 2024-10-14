@@ -73,10 +73,15 @@ def clean_song_data(song_data):
     metatags = [remove_non_text_characters(tag).strip() for tag in song_data.get('metatags', [])]
     language = remove_non_text_characters(song_data.get('language', '')).strip()
 
+    # Hier wird der Dateiname hinzugefügt
+    filename = song_data.get('filename', '')
+
     return {
         "title": title,
         "lyrics": lyrics,
         "styles": styles,
         "metatags": metatags,
-        "language": language
+        "language": language,
+        "filename": filename  # Der Dateiname bleibt jetzt erhalten
     }
+

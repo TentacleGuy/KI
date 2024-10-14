@@ -13,8 +13,6 @@ class SongGeneratorApp(tk.Tk):
         self.create_widgets()
         self.load_random_json_file()  # Lädt eine zufällige JSON-Datei beim Start
 
-
-
     def create_widgets(self):
         # Tabbed Notebook für die drei Bereiche
         notebook = ttk.Notebook(self)
@@ -40,11 +38,12 @@ class SongGeneratorApp(tk.Tk):
         progress_frame = tk.Frame(parent)
         progress_frame.grid(row=2, column=0, padx=10, pady=10, sticky="ew")
 
-        self.progress_label = tk.Label(progress_frame, text="Fortschritt:")
-        self.progress_label.grid(row=0, column=0, sticky="w")
+       # Gesamtfortschritt (Label und Fortschrittsbalken)
+        self.progress_label = ttk.Label(progress_frame, text="Song 0 von 0")
+        self.progress_label.pack()
 
         self.progress_bar = ttk.Progressbar(progress_frame, orient='horizontal', mode='determinate')
-        self.progress_bar.grid(row=1, column=0, sticky="ew")
+        self.progress_bar.pack(fill=tk.X, pady=5)  # Fortschrittsbalken füllt die gesamte Breite
 
         # JSON Key Felder für Trainingsdaten
         self.json_keys_frame = tk.Frame(parent)
@@ -67,31 +66,38 @@ class SongGeneratorApp(tk.Tk):
 
     # Key-Auswahl-Felder für Trainingsdaten erstellen
     def create_key_selection_fields(self, parent):
-        # Schlüssel für Trainingsdaten (Titel, Lyrics, Styles, Sprache, Metatags)
+        # Setze den Grid-Manager mit 3 Spalten für je zwei Felder übereinander
+        parent.columnconfigure(0, weight=1)
+        parent.columnconfigure(1, weight=1)
+        parent.columnconfigure(2, weight=1)
+
+        # Erste Spalte (Titel Key und Styles Key)
         tk.Label(parent, text="Titel Key:").grid(row=0, column=0, sticky="w")
         self.title_key = ttk.Combobox(parent)
-        self.title_key.grid(row=0, column=1, sticky="ew")
-
-        tk.Label(parent, text="Lyrics Key:").grid(row=1, column=0, sticky="w")
-        self.lyrics_key = ttk.Combobox(parent)
-        self.lyrics_key.grid(row=1, column=1, sticky="ew")
+        self.title_key.grid(row=1, column=0, sticky="ew")
 
         tk.Label(parent, text="Styles Key:").grid(row=2, column=0, sticky="w")
         self.styles_key = ttk.Combobox(parent)
-        self.styles_key.grid(row=2, column=1, sticky="ew")
+        self.styles_key.grid(row=3, column=0, sticky="ew")
 
-        tk.Label(parent, text="Metatags Key:").grid(row=3, column=0, sticky="w")
+        # Zweite Spalte (Lyrics Key und Metatags Key)
+        tk.Label(parent, text="Lyrics Key:").grid(row=0, column=1, sticky="w")
+        self.lyrics_key = ttk.Combobox(parent)
+        self.lyrics_key.grid(row=1, column=1, sticky="ew")
+
+        tk.Label(parent, text="Metatags Key:").grid(row=2, column=1, sticky="w")
         self.metatags_key = ttk.Combobox(parent)
         self.metatags_key.grid(row=3, column=1, sticky="ew")
 
-        tk.Label(parent, text="Sprache Key:").grid(row=4, column=0, sticky="w")
+        # Dritte Spalte (Sprache Key und Automatische Erkennung)
+        tk.Label(parent, text="Sprache Key:").grid(row=0, column=2, sticky="w")
         self.language_key = ttk.Combobox(parent)
-        self.language_key.grid(row=4, column=1, sticky="ew")
+        self.language_key.grid(row=1, column=2, sticky="ew")
 
         self.detect_language_var = tk.IntVar()
         detect_checkbox = ttk.Checkbutton(parent, text="Sprache automatisch erkennen", variable=self.detect_language_var, command=self.toggle_language_key)
-        detect_checkbox.grid(row=4, column=2, sticky="w")
-
+        detect_checkbox.grid(row=2, column=2, sticky="w")
+    
     def toggle_language_key(self):
         # Deaktiviert das Sprachfeld, wenn die automatische Spracherkennung aktiviert ist
         if self.detect_language_var.get():
@@ -111,16 +117,18 @@ class SongGeneratorApp(tk.Tk):
         detect_language = bool(self.detect_language_var.get())
 
         # Callback für den Fortschritt
-        def update_progress(progress):
+        def update_progress(progress, current, total):
             self.progress_bar['value'] = progress
+            self.progress_label.config(text=f"Song {current} von {total}")
             self.update_idletasks()
+
 
         # Überprüfen, ob alle nötigen Felder ausgefüllt sind
         if title_key and lyrics_key and styles_key and metatags_key and (language_key or detect_language):
             # Starte die Datenvorbereitung
             try:
                 processed, total = prepare_data(
-                    song_folder, title_key, lyrics_key, styles_key, metatags_key, language_key, detect_language, update_progress
+                    song_folder, title_key, lyrics_key, styles_key, metatags_key, language_key, detect_language, update_progress, self.log
                 )
                 messagebox.showinfo("Datenvorbereitung", f"Verarbeitung abgeschlossen. {processed} von {total} Songs bearbeitet.")
             except Exception as e:
