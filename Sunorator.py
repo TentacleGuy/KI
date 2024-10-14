@@ -35,7 +35,29 @@ class SongGeneratorApp(tk.Tk):
 
     # Datenvorbereitungs-Tab
     def create_preparation_tab(self, parent):
-       # Fortschrittsbalken-Rahmen (Anpassung)
+        # Rahmen für die drei Buttons nebeneinander
+        button_frame = tk.Frame(parent)
+        button_frame.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
+        button_frame.columnconfigure(0, weight=1)  # Erste Spalte (33%)
+        button_frame.columnconfigure(1, weight=1)  # Zweite Spalte (33%)
+        button_frame.columnconfigure(2, weight=1)  # Dritte Spalte (33%)
+
+        # Buttons: Zufällige Datei, Manuelle Datei und Daten vorbereiten
+        reload_random_button = ttk.Button(button_frame, text="Zufällige Datei neu laden", command=self.load_random_json_file)
+        reload_random_button.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
+
+        manual_select_button = ttk.Button(button_frame, text="Manuelle Datei auswählen", command=self.select_manual_json_file)
+        manual_select_button.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+
+        start_button = ttk.Button(button_frame, text="Daten vorbereiten", command=self.start_data_preparation)
+        start_button.grid(row=0, column=2, padx=5, pady=5, sticky="ew")
+
+        # JSON Key Felder für Trainingsdaten
+        self.json_keys_frame = tk.Frame(parent)
+        self.json_keys_frame.grid(row=1, column=0, padx=10, pady=10, sticky="ew")
+        self.create_key_selection_fields(self.json_keys_frame)
+
+        # Fortschrittsbalken-Rahmen (Anpassung)
         progress_frame = tk.Frame(parent)
         progress_frame.grid(row=2, column=0, padx=10, pady=10, sticky="ew")
 
@@ -60,24 +82,17 @@ class SongGeneratorApp(tk.Tk):
         self.skipped_lyrics_bar = ttk.Progressbar(progress_frame, orient='horizontal', mode='determinate')
         self.skipped_lyrics_bar.pack(fill=tk.X, pady=5)
 
-        # JSON Key Felder für Trainingsdaten
-        self.json_keys_frame = tk.Frame(parent)
-        self.json_keys_frame.grid(row=1, column=0, padx=10, pady=10, sticky="ew")
-        self.create_key_selection_fields(self.json_keys_frame)
-
-        # Button zum Starten der Datenvorbereitung
-        start_button = ttk.Button(parent, text="Daten vorbereiten", command=self.start_data_preparation)
-        start_button.grid(row=3, column=0, padx=10, pady=10, sticky="ew")
-
         # Ausgabefeld für Logs und Errors
         log_frame = tk.Frame(parent)
-        log_frame.grid(row=4, column=0, padx=10, pady=10, sticky="ew")
+        log_frame.grid(row=3, column=0, padx=10, pady=10, sticky="ew")
 
         self.log_text = tk.Text(log_frame, height=5, wrap=tk.WORD)
         self.log_text.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
 
         log_frame.columnconfigure(0, weight=1)
         log_frame.rowconfigure(0, weight=1)
+
+
 
     # Key-Auswahl-Felder für Trainingsdaten erstellen
     def create_key_selection_fields(self, parent):
@@ -183,6 +198,16 @@ class SongGeneratorApp(tk.Tk):
         else:
             self.log(f"Ordner {folder} nicht gefunden.")
 
+    def select_manual_json_file(self):
+        file_path = filedialog.askopenfilename(filetypes=[("JSON-Dateien", "*.json"), ("Alle Dateien", "*.*")])
+        if file_path:
+            self.log(f"Manuelle Datei ausgewählt: {file_path}")
+            with open(file_path, 'r', encoding='utf-8') as file:
+                data = json.load(file)
+                self.update_key_selection(data)
+        else:
+            self.log("Keine Datei ausgewählt.")
+
     def update_key_selection(self, data):
         try:
             keys = list(data.keys())
@@ -197,18 +222,31 @@ class SongGeneratorApp(tk.Tk):
             self.auto_select_key(self.lyrics_key, keys, EXPECTED_KEYS["lyrics"])
             self.auto_select_key(self.styles_key, keys, EXPECTED_KEYS["styles"])
             self.auto_select_key(self.metatags_key, keys, EXPECTED_KEYS["metatags"])
-            self.auto_select_key(self.language_key, keys, EXPECTED_KEYS["language"])
+
+            # Sprach-Key überprüfen
+            language_selected = self.auto_select_key(self.language_key, keys, EXPECTED_KEYS["language"])
+
+            # Wenn kein Sprach-Tag gefunden wurde, aktiviere automatische Spracherkennung
+            if not language_selected:
+                self.detect_language_var.set(1)  # Setze den Haken bei "Sprache automatisch erkennen"
+                self.language_key.set('')  # Entferne den gewählten Wert, falls vorhanden
+                self.language_key.config(state='disabled')
+            else:
+                self.detect_language_var.set(0)  # Entferne den Haken bei "Sprache automatisch erkennen"
+                self.language_key.config(state='normal')
 
             self.log("Keys erfolgreich geladen und (wenn möglich) vorausgewählt.")
         except Exception as e:
             self.log(f"Fehler beim Laden der Keys: {e}")
 
     def auto_select_key(self, combobox, keys, expected_keywords):
+        """Wählt den ersten passenden Key aus der Liste der erwarteten Keys aus"""
         for key in keys:
             for expected in expected_keywords:
                 if expected.lower() in key.lower():
                     combobox.set(key)
-                    return  # Sobald wir einen Treffer finden, hören wir auf
+                    return True  # Sobald wir einen Treffer finden, hören wir auf
+        return False  # Kein Treffer gefunden
 
 
     # Trainings-Tab
