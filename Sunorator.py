@@ -76,7 +76,7 @@ class SongGeneratorApp(tk.Tk):
         self.skipped_existing_bar.pack(fill=tk.X, pady=5)
 
         # Fortschrittsbalken für fehlende Lyrics (übersprungen)
-        self.skipped_lyrics_label = ttk.Label(progress_frame, text="keine Lyrics: 0")
+        self.skipped_lyrics_label = ttk.Label(progress_frame, text="keine Lyrics oder Metatags: 0")
         self.skipped_lyrics_label.pack()
 
         self.skipped_lyrics_bar = ttk.Progressbar(progress_frame, orient='horizontal', mode='determinate')
@@ -150,15 +150,15 @@ class SongGeneratorApp(tk.Tk):
         def update_progress(processed, total, skipped_existing, skipped_lyrics):
             # Fortschritt für die gesamten Songs
             self.progress_bar['value'] = int((processed / total) * 100)
-            self.progress_label.config(text=f"Song {processed} von {total}")
+            self.progress_label.config(text=f"Neue Songs {processed} von {total}")
 
             # Fortschritt der übersprungenen Songs (bereits vorhanden)
             self.skipped_existing_bar['value'] = int((skipped_existing / total) * 100)
-            self.skipped_existing_label.config(text=f"Übersprungene Songs (bereits vorhanden): {skipped_existing}")
+            self.skipped_existing_label.config(text=f"bereits vorhanden: {skipped_existing}")
 
             # Fortschritt der übersprungenen Songs (keine Lyrics)
             self.skipped_lyrics_bar['value'] = int((skipped_lyrics / total) * 100)
-            self.skipped_lyrics_label.config(text=f"Übersprungene Songs (keine Lyrics): {skipped_lyrics}")
+            self.skipped_lyrics_label.config(text=f"keine Lyrics oder Metatags: {skipped_lyrics}")
 
             self.update_idletasks()
 
