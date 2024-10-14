@@ -1,4 +1,5 @@
 import re
+import regex
 import os
 import json
 from threading import Lock
@@ -14,6 +15,12 @@ if not os.path.exists(SONG_META_DIR):  # Füge dies für den neuen song_meta-Ord
 
 # Sperrmechanismus für Dateioperationen (Vermeidung von Konflikten bei parallelen Schreibvorgängen)
 file_lock = Lock()
+
+#textfilter
+def remove_non_text_characters(text):
+    # Regex, der nur Buchstaben, Zahlen und gängige Satzzeichen zulässt
+    pattern = regex.compile(r'[^\p{L}\p{N}\s\.\,\!\?\-\']', regex.UNICODE)
+    return pattern.sub('', text)
 
 # Lade JSON Datei, falls vorhanden
 def load_json(file_path):
@@ -55,3 +62,21 @@ def get_processed_song_ids():
             song_ids.add(song_id)
     return song_ids
 
+
+################Trainingdata#########################
+
+def clean_song_data(song_data):
+    """Bereinigt die Felder eines Songs und entfernt unnötige Leerzeichen"""
+    title = remove_non_text_characters(song_data.get('title', '')).strip()
+    lyrics = remove_non_text_characters(song_data.get('lyrics', '')).strip()
+    styles = [remove_non_text_characters(style).strip() for style in song_data.get('styles', [])]
+    metatags = [remove_non_text_characters(tag).strip() for tag in song_data.get('metatags', [])]
+    language = remove_non_text_characters(song_data.get('language', '')).strip()
+
+    return {
+        "title": title,
+        "lyrics": lyrics,
+        "styles": styles,
+        "metatags": metatags,
+        "language": language
+    }
