@@ -4,7 +4,8 @@ import os
 import json
 import random
 from data_preparation import prepare_data
-from constants import SONGS_DIR  # Importiere den SONGS_DIR aus der constants.py
+from constants import *
+import threading
 
 class SongGeneratorApp(tk.Tk):
     def __init__(self):
@@ -34,16 +35,30 @@ class SongGeneratorApp(tk.Tk):
 
     # Datenvorbereitungs-Tab
     def create_preparation_tab(self, parent):
-        # Fortschrittsbalken
+       # Fortschrittsbalken-Rahmen (Anpassung)
         progress_frame = tk.Frame(parent)
         progress_frame.grid(row=2, column=0, padx=10, pady=10, sticky="ew")
 
-       # Gesamtfortschritt (Label und Fortschrittsbalken)
+        # Gesamtfortschritt
         self.progress_label = ttk.Label(progress_frame, text="Song 0 von 0")
         self.progress_label.pack()
 
         self.progress_bar = ttk.Progressbar(progress_frame, orient='horizontal', mode='determinate')
-        self.progress_bar.pack(fill=tk.X, pady=5)  # Fortschrittsbalken füllt die gesamte Breite
+        self.progress_bar.pack(fill=tk.X, pady=5)
+
+        # Fortschrittsbalken für bereits vorhandene Songs (übersprungen)
+        self.skipped_existing_label = ttk.Label(progress_frame, text="bereits vorhanden: 0")
+        self.skipped_existing_label.pack()
+
+        self.skipped_existing_bar = ttk.Progressbar(progress_frame, orient='horizontal', mode='determinate')
+        self.skipped_existing_bar.pack(fill=tk.X, pady=5)
+
+        # Fortschrittsbalken für fehlende Lyrics (übersprungen)
+        self.skipped_lyrics_label = ttk.Label(progress_frame, text="keine Lyrics: 0")
+        self.skipped_lyrics_label.pack()
+
+        self.skipped_lyrics_bar = ttk.Progressbar(progress_frame, orient='horizontal', mode='determinate')
+        self.skipped_lyrics_bar.pack(fill=tk.X, pady=5)
 
         # JSON Key Felder für Trainingsdaten
         self.json_keys_frame = tk.Frame(parent)
@@ -117,20 +132,30 @@ class SongGeneratorApp(tk.Tk):
         detect_language = bool(self.detect_language_var.get())
 
         # Callback für den Fortschritt
-        def update_progress(progress, current, total):
-            self.progress_bar['value'] = progress
-            self.progress_label.config(text=f"Song {current} von {total}")
+        def update_progress(processed, total, skipped_existing, skipped_lyrics):
+            # Fortschritt für die gesamten Songs
+            self.progress_bar['value'] = int((processed / total) * 100)
+            self.progress_label.config(text=f"Song {processed} von {total}")
+
+            # Fortschritt der übersprungenen Songs (bereits vorhanden)
+            self.skipped_existing_bar['value'] = int((skipped_existing / total) * 100)
+            self.skipped_existing_label.config(text=f"Übersprungene Songs (bereits vorhanden): {skipped_existing}")
+
+            # Fortschritt der übersprungenen Songs (keine Lyrics)
+            self.skipped_lyrics_bar['value'] = int((skipped_lyrics / total) * 100)
+            self.skipped_lyrics_label.config(text=f"Übersprungene Songs (keine Lyrics): {skipped_lyrics}")
+
             self.update_idletasks()
 
-
-        # Überprüfen, ob alle nötigen Felder ausgefüllt sind
         if title_key and lyrics_key and styles_key and metatags_key and (language_key or detect_language):
-            # Starte die Datenvorbereitung
             try:
                 processed, total = prepare_data(
                     song_folder, title_key, lyrics_key, styles_key, metatags_key, language_key, detect_language, update_progress, self.log
                 )
-                messagebox.showinfo("Datenvorbereitung", f"Verarbeitung abgeschlossen. {processed} von {total} Songs bearbeitet.")
+                if total > 0:
+                    messagebox.showinfo("Datenvorbereitung", f"Verarbeitung abgeschlossen. {processed} von {total} Songs bearbeitet.")
+                else:
+                    self.log("Keine Songs zum Bearbeiten gefunden.")
             except Exception as e:
                 self.log(f"Fehler bei der Datenvorbereitung: {e}")
         else:
@@ -166,9 +191,25 @@ class SongGeneratorApp(tk.Tk):
             self.styles_key['values'] = keys
             self.metatags_key['values'] = keys
             self.language_key['values'] = keys
-            self.log("Keys erfolgreich geladen.")
+
+            # Automatische Auswahl basierend auf den erwarteten Keys aus der constants.py
+            self.auto_select_key(self.title_key, keys, EXPECTED_KEYS["title"])
+            self.auto_select_key(self.lyrics_key, keys, EXPECTED_KEYS["lyrics"])
+            self.auto_select_key(self.styles_key, keys, EXPECTED_KEYS["styles"])
+            self.auto_select_key(self.metatags_key, keys, EXPECTED_KEYS["metatags"])
+            self.auto_select_key(self.language_key, keys, EXPECTED_KEYS["language"])
+
+            self.log("Keys erfolgreich geladen und (wenn möglich) vorausgewählt.")
         except Exception as e:
             self.log(f"Fehler beim Laden der Keys: {e}")
+
+    def auto_select_key(self, combobox, keys, expected_keywords):
+        for key in keys:
+            for expected in expected_keywords:
+                if expected.lower() in key.lower():
+                    combobox.set(key)
+                    return  # Sobald wir einen Treffer finden, hören wir auf
+
 
     # Trainings-Tab
     def create_training_tab(self, parent):

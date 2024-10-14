@@ -9,3 +9,15 @@ STYLES_FILE = f"{SONG_META_DIR}/all_styles.json"
 SONG_STYLES_MAPPING_FILE = f"{SONG_META_DIR}/song_styles_mapping.json"
 META_TAGS_FILE = f"{SONG_META_DIR}/all_meta_tags.json"
 SONG_META_MAPPING_FILE = f"{SONG_META_DIR}/song_meta_mapping.json"
+
+#trainingdata
+TRAININGDATA_FILE = 'trainingdata.json'
+# Erwartete Keys für die automatische Auswahl
+EXPECTED_KEYS = {
+    "title": ["title", "songtitle", "name"],
+    "lyrics": ["lyrics", "text", "songtext"],
+    "styles": ["styles", "genre", "genres", "style"],
+    "metatags": ["metatags", "tags", "meta"],
+    "language": ["language", "lang", "sprache"]
+}
+
