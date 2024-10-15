@@ -4,3 +4,5 @@ song_meta/
 /venv
 __pycache__/
 trainingdata.json
+versions/
+versions/*
