@@ -8,6 +8,7 @@ from constants import *
 import threading
 from datasets import load_dataset
 from training import *
+from generate import *
 
 class SongGeneratorApp(tk.Tk):
     def __init__(self):
@@ -127,48 +128,77 @@ class SongGeneratorApp(tk.Tk):
         # Trainingsstart-Button
         start_training_button = ttk.Button(parent, text="Training starten", command=self.start_training)
         start_training_button.grid(row=4, column=0, padx=10, pady=10, sticky="ew")
+    
     # Lyricsgenerator-Tab
     def create_generation_tab(self, parent):
-        # Modell für die Generierung auswählen
-        model_frame = tk.Frame(parent)
-        model_frame.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
+        generation_frame = tk.Frame(parent)
+        generation_frame.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
 
-        self.generation_model_path = tk.StringVar()
-        gen_model_label = tk.Label(model_frame, text="Modell für Generierung:")
-        gen_model_label.grid(row=0, column=0, sticky="w")
-        gen_model_button = ttk.Button(model_frame, text="Modell auswählen", command=self.select_generation_model)
-        gen_model_button.grid(row=0, column=1, sticky="ew")
-        gen_model_entry = tk.Entry(model_frame, textvariable=self.generation_model_path, width=50)
-        gen_model_entry.grid(row=0, column=2, sticky="ew")
+        # Model selection dropdown
+        tk.Label(generation_frame, text="Model:").grid(row=0, column=0, sticky="w")
+        self.model_var = tk.StringVar()
+        self.model_dropdown = ttk.Combobox(generation_frame, textvariable=self.model_var)
+        self.load_model_paths()
+        self.model_dropdown.grid(row=0, column=1, sticky="ew")
 
-        # Eingabefelder für Titel und Genre
-        input_frame = tk.Frame(parent)
-        input_frame.grid(row=1, column=0, padx=10, pady=10, sticky="ew")
+        # Song title input
+        tk.Label(generation_frame, text="Song Title:").grid(row=1, column=0, sticky="w")
+        self.title_entry = tk.Entry(generation_frame)
+        self.title_entry.grid(row=1, column=1, sticky="ew")
 
-        self.title_label = tk.Label(input_frame, text="Titel:")
-        self.title_label.grid(row=0, column=0, sticky="w")
-        self.title_entry = tk.Entry(input_frame)
-        self.title_entry.grid(row=0, column=1, sticky="ew")
+        # Style/Metatags input
+        tk.Label(generation_frame, text="Style/Metatags:").grid(row=2, column=0, sticky="w")
+        self.style_entry = tk.Entry(generation_frame)
+        self.style_entry.grid(row=2, column=1, sticky="ew")
 
-        self.genre_label = tk.Label(input_frame, text="Style/Genre:")
-        self.genre_label.grid(row=1, column=0, sticky="w")
-        self.genre_entry = tk.Entry(input_frame)
-        self.genre_entry.grid(row=1, column=1, sticky="ew")
+        # Prompt input
+        tk.Label(generation_frame, text="Prompt:").grid(row=3, column=0, sticky="w")
+        self.prompt_entry = tk.Text(generation_frame, height=3)
+        self.prompt_entry.grid(row=3, column=1, sticky="ew")
 
-        input_frame.columnconfigure(1, weight=1)
+        # Generate button
+        generate_button = ttk.Button(generation_frame, text="Generate Lyrics", command=lambda: start_lyrics_generation(self))
+        generate_button.grid(row=4, column=0, columnspan=2, pady=10, sticky="ew")
 
-        # Textfeld für den generierten Prompt
-        self.prompt_label = tk.Label(parent, text="Generierter Prompt:")
-        self.prompt_label.grid(row=2, column=0, sticky="w", padx=10)
+        # Log output
+        self.log_text = tk.Text(generation_frame, height=10, wrap=tk.WORD)
+        self.log_text.grid(row=5, column=0, columnspan=2, sticky="nsew")
 
-        self.prompt_text = tk.Text(parent, wrap=tk.WORD, height=10)
-        self.prompt_text.grid(row=3, column=0, padx=10, pady=10, sticky="nsew")
+        # Configure grid
+        generation_frame.columnconfigure(1, weight=1)
+        generation_frame.rowconfigure(5, weight=1)
 
-        # Button zum Kopieren des generierten Lyrics-Felds
-        copy_button = ttk.Button(parent, text="Lyrics kopieren", command=self.copy_lyrics_to_clipboard)
-        copy_button.grid(row=4, column=0, padx=5, pady=5, sticky="ew")
+    def load_model_paths(self):
+        model_folder = "results"
+        if os.path.exists(model_folder):
+            model_dirs = [d for d in os.listdir(model_folder) if os.path.isdir(os.path.join(model_folder, d))]
+            self.model_dropdown['values'] = model_dirs
+        else:
+            self.model_dropdown['values'] = []
 
-     # Key-Auswahl-Felder für Trainingsdaten erstellen
+    def generate_lyrics(self):
+        model = self.model_var.get()
+        title = self.title_entry.get()
+        style = self.style_entry.get()
+        prompt = self.prompt_entry.get("1.0", tk.END).strip()
+
+        self.log_text.delete("1.0", tk.END)
+        self.log_text.insert(tk.END, f"Generating lyrics with:\nModel: {model}\nTitle: {title}\nStyle: {style}\nPrompt: {prompt}\n\n")
+        
+        # Here you would call your actual lyrics generation function
+        # For now, we'll just log a placeholder message
+        self.log_text.insert(tk.END, "Lyrics generation not implemented yet.")
+
+    def log_message(self, message):
+        """Fügt eine Log-Nachricht in das Log-Textfeld ein."""
+        self.log(self.log_text, message)
+
+    def update_prompt_text(self, lyrics):
+        """Aktualisiert das Prompt-Textfeld mit den generierten Lyrics."""
+        self.prompt_text.after(0, self.prompt_text.delete, "1.0", tk.END)  # Löscht alten Text
+        self.prompt_text.after(0, self.prompt_text.insert, tk.END, lyrics)  # Fügt neue Lyrics ein
+        self.prompt_text.after(0, self.prompt_text.yview_moveto, 1)  # Scrollt automatisch nach unten
+        # Key-Auswahl-Felder für Trainingsdaten erstellen
     
     def create_key_selection_fields(self, parent):
         # Setze den Grid-Manager mit 3 Spalten für je zwei Felder übereinander
@@ -327,17 +357,8 @@ class SongGeneratorApp(tk.Tk):
                     return True  # Sobald wir einen Treffer finden, hören wir auf
         return False  # Kein Treffer gefunden
    # Funktion zum Auswählen eines Trainingsmodells
-    def select_model(self):
-        model_path = filedialog.askopenfilename(filetypes=[("Modell-Dateien", "*.model"), ("Alle Dateien", "*.*")])
-        if model_path:
-            self.model_path.set(model_path)
 
-    # Funktion zum Auswählen eines Modells für die Lyricsgenerierung
-    def select_generation_model(self):
-        gen_model_path = filedialog.askopenfilename(filetypes=[("Modell-Dateien", "*.model"), ("Alle Dateien", "*.*")])
-        if gen_model_path:
-            self.generation_model_path.set(gen_model_path)
-
+#TODO:weiteren klick auf button verhindern, wenn training läuft
     def start_training(self):
         # Führe den Trainingsprozess in einem separaten Thread aus
         training_thread = threading.Thread(target=self.run_training)
