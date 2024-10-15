@@ -10,9 +10,8 @@ SONG_STYLES_MAPPING_FILE = f"{SONG_META_DIR}/song_styles_mapping.json"
 META_TAGS_FILE = f"{SONG_META_DIR}/all_meta_tags.json"
 SONG_META_MAPPING_FILE = f"{SONG_META_DIR}/song_meta_mapping.json"
 
-#trainingdata
-TRAININGDATA_FILE = 'trainingdata.json'
-# Erwartete Keys für die automatische Auswahl
+
+#Datenvorbereitung
 EXPECTED_KEYS = {
     "title": ["title", "songtitle", "name"],
     "lyrics": ["lyrics", "text", "songtext"],
@@ -20,4 +19,14 @@ EXPECTED_KEYS = {
     "metatags": ["metatags", "tags", "meta"],
     "language": ["language", "lang", "sprache"]
 }
+
+#trainingdata
+TRAININGDATA_FILE = 'trainingdata.json'
+
+#Training
+# Standardwerte für das Training
+DEFAULT_EPOCHS = 10
+DEFAULT_LEARNING_RATE = 0.001
+DEFAULT_BATCH_SIZE = 32
+
 

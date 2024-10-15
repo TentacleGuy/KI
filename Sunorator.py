@@ -6,7 +6,8 @@ import random
 from data_preparation import prepare_data
 from constants import *
 import threading
-
+from datasets import load_dataset
+from training import *
 class SongGeneratorApp(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -83,18 +84,91 @@ class SongGeneratorApp(tk.Tk):
         self.skipped_lyrics_bar.pack(fill=tk.X, pady=5)
 
         # Ausgabefeld für Logs und Errors
-        log_frame = tk.Frame(parent)
-        log_frame.grid(row=3, column=0, padx=10, pady=10, sticky="ew")
+        prep_log_frame = tk.Frame(parent)
+        prep_log_frame.grid(row=3, column=0, padx=10, pady=10, sticky="ew")
 
-        self.log_text = tk.Text(log_frame, height=5, wrap=tk.WORD)
-        self.log_text.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
+        self.prep_log_text = tk.Text(prep_log_frame, height=5, wrap=tk.WORD)
+        self.prep_log_text.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
 
-        log_frame.columnconfigure(0, weight=1)
-        log_frame.rowconfigure(0, weight=1)
+        prep_log_frame.columnconfigure(0, weight=1)
+        prep_log_frame.rowconfigure(0, weight=1)
 
+    # Trainings-Tab
+    def create_training_tab(self, parent):
+        # Anpassbare Trainingsparameter
+        param_frame = tk.Frame(parent)
+        param_frame.grid(row=1, column=0, padx=10, pady=10, sticky="ew")
 
+        # Epochen
+        tk.Label(param_frame, text="Epochen:").grid(row=0, column=0, sticky="w")
+        self.epochs_var = tk.IntVar(value=DEFAULT_EPOCHS)
+        tk.Entry(param_frame, textvariable=self.epochs_var).grid(row=0, column=1, sticky="ew")
 
-    # Key-Auswahl-Felder für Trainingsdaten erstellen
+        # Lernrate
+        tk.Label(param_frame, text="Lernrate:").grid(row=1, column=0, sticky="w")
+        self.lr_var = tk.DoubleVar(value=DEFAULT_LEARNING_RATE)
+        tk.Entry(param_frame, textvariable=self.lr_var).grid(row=1, column=1, sticky="ew")
+
+        # Batch-Größe
+        tk.Label(param_frame, text="Batch-Größe:").grid(row=2, column=0, sticky="w")
+        self.batch_size_var = tk.IntVar(value=DEFAULT_BATCH_SIZE)
+        tk.Entry(param_frame, textvariable=self.batch_size_var).grid(row=2, column=1, sticky="ew")
+
+        # Logs für den Trainingsfortschritt
+        train_log_frame = tk.Frame(parent)
+        train_log_frame.grid(row=3, column=0, padx=10, pady=10, sticky="ew")
+
+        self.train_log_text = tk.Text(train_log_frame, height=10, wrap=tk.WORD)
+        self.train_log_text.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
+        train_log_frame.columnconfigure(0, weight=1)
+        train_log_frame.rowconfigure(0, weight=1)
+
+        # Trainingsstart-Button
+        start_training_button = ttk.Button(parent, text="Training starten", command=self.start_training)
+        start_training_button.grid(row=4, column=0, padx=10, pady=10, sticky="ew")
+    # Lyricsgenerator-Tab
+    def create_generation_tab(self, parent):
+        # Modell für die Generierung auswählen
+        model_frame = tk.Frame(parent)
+        model_frame.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
+
+        self.generation_model_path = tk.StringVar()
+        gen_model_label = tk.Label(model_frame, text="Modell für Generierung:")
+        gen_model_label.grid(row=0, column=0, sticky="w")
+        gen_model_button = ttk.Button(model_frame, text="Modell auswählen", command=self.select_generation_model)
+        gen_model_button.grid(row=0, column=1, sticky="ew")
+        gen_model_entry = tk.Entry(model_frame, textvariable=self.generation_model_path, width=50)
+        gen_model_entry.grid(row=0, column=2, sticky="ew")
+
+        # Eingabefelder für Titel und Genre
+        input_frame = tk.Frame(parent)
+        input_frame.grid(row=1, column=0, padx=10, pady=10, sticky="ew")
+
+        self.title_label = tk.Label(input_frame, text="Titel:")
+        self.title_label.grid(row=0, column=0, sticky="w")
+        self.title_entry = tk.Entry(input_frame)
+        self.title_entry.grid(row=0, column=1, sticky="ew")
+
+        self.genre_label = tk.Label(input_frame, text="Style/Genre:")
+        self.genre_label.grid(row=1, column=0, sticky="w")
+        self.genre_entry = tk.Entry(input_frame)
+        self.genre_entry.grid(row=1, column=1, sticky="ew")
+
+        input_frame.columnconfigure(1, weight=1)
+
+        # Textfeld für den generierten Prompt
+        self.prompt_label = tk.Label(parent, text="Generierter Prompt:")
+        self.prompt_label.grid(row=2, column=0, sticky="w", padx=10)
+
+        self.prompt_text = tk.Text(parent, wrap=tk.WORD, height=10)
+        self.prompt_text.grid(row=3, column=0, padx=10, pady=10, sticky="nsew")
+
+        # Button zum Kopieren des generierten Lyrics-Felds
+        copy_button = ttk.Button(parent, text="Lyrics kopieren", command=self.copy_lyrics_to_clipboard)
+        copy_button.grid(row=4, column=0, padx=5, pady=5, sticky="ew")
+
+     # Key-Auswahl-Felder für Trainingsdaten erstellen
+    
     def create_key_selection_fields(self, parent):
         # Setze den Grid-Manager mit 3 Spalten für je zwei Felder übereinander
         parent.columnconfigure(0, weight=1)
@@ -164,49 +238,53 @@ class SongGeneratorApp(tk.Tk):
 
         if title_key and lyrics_key and styles_key and metatags_key and (language_key or detect_language):
             try:
+                # Wrapper für die Log-Nachrichten der Datenvorbereitung
+                def log_preparation_message(message):
+                    self.log(self.prep_log_text, message)
+
                 processed, total = prepare_data(
-                    song_folder, title_key, lyrics_key, styles_key, metatags_key, language_key, detect_language, update_progress, self.log
+                    song_folder, title_key, lyrics_key, styles_key, metatags_key, language_key, detect_language, update_progress, log_preparation_message
                 )
                 if total > 0:
-                    messagebox.showinfo("Datenvorbereitung", f"Verarbeitung abgeschlossen. {processed} von {total} Songs bearbeitet.")
+                    log_preparation_message(f"Verarbeitung abgeschlossen. {processed} von {total} Songs bearbeitet.")
                 else:
-                    self.log("Keine Songs zum Bearbeiten gefunden.")
+                    log_preparation_message("Keine Songs zum Bearbeiten gefunden.")
             except Exception as e:
-                self.log(f"Fehler bei der Datenvorbereitung: {e}")
+                log_preparation_message(f"Fehler bei der Datenvorbereitung: {e}")
         else:
-            self.log("Fehler: Bitte alle Felder ausfüllen.")
+            self.log(self.prep_log_text, "Fehler: Bitte alle Felder ausfüllen.")
 
-    def log(self, message):
-        self.log_text.insert(tk.END, f"{message}\n")
-        self.log_text.see(tk.END)
+    def log(self, log_text_widget, message):
+        log_text_widget.insert(tk.END, f"{message}\n")
+        log_text_widget.see(tk.END)
 
     # Daten aus einer zufälligen JSON-Datei laden und die Keys anzeigen
     def load_random_json_file(self):
-        self.log(f"Lade Songs aus dem Verzeichnis: {SONGS_DIR}")
+        self.log(self.prep_log_text, f"Lade Songs aus dem Verzeichnis: {SONGS_DIR}")
         folder = SONGS_DIR  # Verwende den Ordner aus constants.py
         if os.path.isdir(folder):
             json_files = [f for f in os.listdir(folder) if f.endswith('.json')]
             if json_files:
                 random_file = random.choice(json_files)
                 file_path = os.path.join(folder, random_file)
-                self.log(f"Zufällige Datei geladen: {random_file}")
+                self.log(self.prep_log_text, f"Zufällige Datei geladen: {random_file}")
                 with open(file_path, 'r', encoding='utf-8') as file:
                     data = json.load(file)
                     self.update_key_selection(data)
             else:
-                self.log("Keine JSON-Dateien im Ordner gefunden.")
+                self.log(self.prep_log_text, "Keine JSON-Dateien im Ordner gefunden.")
         else:
-            self.log(f"Ordner {folder} nicht gefunden.")
+            self.log(self.prep_log_text, f"Ordner {folder} nicht gefunden.")
 
     def select_manual_json_file(self):
         file_path = filedialog.askopenfilename(filetypes=[("JSON-Dateien", "*.json"), ("Alle Dateien", "*.*")])
         if file_path:
-            self.log(f"Manuelle Datei ausgewählt: {file_path}")
+            self.log(self.prep_log_text, f"Manuelle Datei ausgewählt: {file_path}")
             with open(file_path, 'r', encoding='utf-8') as file:
                 data = json.load(file)
                 self.update_key_selection(data)
         else:
-            self.log("Keine Datei ausgewählt.")
+            self.log(self.prep_log_text, "Keine Datei ausgewählt.")
 
     def update_key_selection(self, data):
         try:
@@ -235,9 +313,9 @@ class SongGeneratorApp(tk.Tk):
                 self.detect_language_var.set(0)  # Entferne den Haken bei "Sprache automatisch erkennen"
                 self.language_key.config(state='normal')
 
-            self.log("Keys erfolgreich geladen und (wenn möglich) vorausgewählt.")
+            self.log(self.prep_log_text, "Keys erfolgreich geladen und (wenn möglich) vorausgewählt.")
         except Exception as e:
-            self.log(f"Fehler beim Laden der Keys: {e}")
+            self.log(self.prep_log_text, f"Fehler beim Laden der Keys: {e}")
 
     def auto_select_key(self, combobox, keys, expected_keywords):
         """Wählt den ersten passenden Key aus der Liste der erwarteten Keys aus"""
@@ -247,68 +325,7 @@ class SongGeneratorApp(tk.Tk):
                     combobox.set(key)
                     return True  # Sobald wir einen Treffer finden, hören wir auf
         return False  # Kein Treffer gefunden
-
-
-    # Trainings-Tab
-    def create_training_tab(self, parent):
-        # Modell aus Ordner auswählen
-        model_frame = tk.Frame(parent)
-        model_frame.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
-
-        self.model_path = tk.StringVar()
-        model_label = tk.Label(model_frame, text="Modell für Training:")
-        model_label.grid(row=0, column=0, sticky="w")
-        model_button = ttk.Button(model_frame, text="Modell auswählen", command=self.select_model)
-        model_button.grid(row=0, column=1, sticky="ew")
-        model_entry = tk.Entry(model_frame, textvariable=self.model_path, width=50)
-        model_entry.grid(row=0, column=2, sticky="ew")
-
-        # Trainingsstart-Button
-        start_training_button = ttk.Button(parent, text="Training starten", command=self.start_training)
-        start_training_button.grid(row=1, column=0, padx=10, pady=10, sticky="ew")
-
-    # Lyricsgenerator-Tab
-    def create_generation_tab(self, parent):
-        # Modell für die Generierung auswählen
-        model_frame = tk.Frame(parent)
-        model_frame.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
-
-        self.generation_model_path = tk.StringVar()
-        gen_model_label = tk.Label(model_frame, text="Modell für Generierung:")
-        gen_model_label.grid(row=0, column=0, sticky="w")
-        gen_model_button = ttk.Button(model_frame, text="Modell auswählen", command=self.select_generation_model)
-        gen_model_button.grid(row=0, column=1, sticky="ew")
-        gen_model_entry = tk.Entry(model_frame, textvariable=self.generation_model_path, width=50)
-        gen_model_entry.grid(row=0, column=2, sticky="ew")
-
-        # Eingabefelder für Titel und Genre
-        input_frame = tk.Frame(parent)
-        input_frame.grid(row=1, column=0, padx=10, pady=10, sticky="ew")
-
-        self.title_label = tk.Label(input_frame, text="Titel:")
-        self.title_label.grid(row=0, column=0, sticky="w")
-        self.title_entry = tk.Entry(input_frame)
-        self.title_entry.grid(row=0, column=1, sticky="ew")
-
-        self.genre_label = tk.Label(input_frame, text="Style/Genre:")
-        self.genre_label.grid(row=1, column=0, sticky="w")
-        self.genre_entry = tk.Entry(input_frame)
-        self.genre_entry.grid(row=1, column=1, sticky="ew")
-
-        input_frame.columnconfigure(1, weight=1)
-
-        # Textfeld für den generierten Prompt
-        self.prompt_label = tk.Label(parent, text="Generierter Prompt:")
-        self.prompt_label.grid(row=2, column=0, sticky="w", padx=10)
-
-        self.prompt_text = tk.Text(parent, wrap=tk.WORD, height=10)
-        self.prompt_text.grid(row=3, column=0, padx=10, pady=10, sticky="nsew")
-
-        # Button zum Kopieren des generierten Lyrics-Felds
-        copy_button = ttk.Button(parent, text="Lyrics kopieren", command=self.copy_lyrics_to_clipboard)
-        copy_button.grid(row=4, column=0, padx=5, pady=5, sticky="ew")
-
-    # Funktion zum Auswählen eines Trainingsmodells
+   # Funktion zum Auswählen eines Trainingsmodells
     def select_model(self):
         model_path = filedialog.askopenfilename(filetypes=[("Modell-Dateien", "*.model"), ("Alle Dateien", "*.*")])
         if model_path:
@@ -320,14 +337,20 @@ class SongGeneratorApp(tk.Tk):
         if gen_model_path:
             self.generation_model_path.set(gen_model_path)
 
-    # Training starten
+    # Training starteneuro
     def start_training(self):
-        model_path = self.model_path.get()
-        if model_path:
-            # Hier kannst du dein Training starten
-            messagebox.showinfo("Training", f"Training mit Modell {model_path} gestartet.")
-        else:
-            messagebox.showerror("Fehler", "Bitte wähle ein Modell aus!")
+        # Übergebe das Log-Textfeld als Argument
+        trainer, training_args = initialize_trainer(
+            model_name="gpt2",
+            epochs=self.epochs_var.get(),
+            learning_rate=self.lr_var.get(),
+            batch_size=self.batch_size_var.get(),
+            log_callback=self.log,  # Übergabe der Log-Methode
+            log_text_widget=self.train_log_text  # Übergabe des Log-Textfelds
+        )
+
+        # Starte das Training
+        trainer.train()
 
     # Lyrics in die Zwischenablage kopieren
     def copy_lyrics_to_clipboard(self):

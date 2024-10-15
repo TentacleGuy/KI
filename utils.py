@@ -62,7 +62,6 @@ def get_processed_song_ids():
             song_ids.add(song_id)
     return song_ids
 
-
 ################Trainingdata#########################
 
 def clean_song_data(song_data):

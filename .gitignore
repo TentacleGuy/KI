@@ -4,5 +4,6 @@ song_meta/
 /venv
 __pycache__/
 trainingdata.json
-versions/
-versions/*
+logs/
+results/
+.tmp.driveupload
