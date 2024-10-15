@@ -73,6 +73,3 @@ def initialize_trainer(model_name, epochs, learning_rate, batch_size, log_callba
     )
 
     return trainer, training_args
-
-
-

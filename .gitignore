@@ -6,4 +6,4 @@ __pycache__/
 trainingdata.json
 logs/
 results/
-.tmp.driveupload
+.tmp.*

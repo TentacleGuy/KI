@@ -9,4 +9,4 @@ torch
 torchvision
 torchaudio
 tensorflow==2.9.1
-transformers[torch] accelerate
+transformers[torch]

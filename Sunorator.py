@@ -8,6 +8,7 @@ from constants import *
 import threading
 from datasets import load_dataset
 from training import *
+
 class SongGeneratorApp(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -337,20 +338,27 @@ class SongGeneratorApp(tk.Tk):
         if gen_model_path:
             self.generation_model_path.set(gen_model_path)
 
-    # Training starteneuro
     def start_training(self):
-        # Übergebe das Log-Textfeld als Argument
-        trainer, training_args = initialize_trainer(
-            model_name="gpt2",
-            epochs=self.epochs_var.get(),
-            learning_rate=self.lr_var.get(),
-            batch_size=self.batch_size_var.get(),
-            log_callback=self.log,  # Übergabe der Log-Methode
-            log_text_widget=self.train_log_text  # Übergabe des Log-Textfelds
-        )
+        # Führe den Trainingsprozess in einem separaten Thread aus
+        training_thread = threading.Thread(target=self.run_training)
+        training_thread.start()
 
-        # Starte das Training
-        trainer.train()
+    def run_training(self):
+        try:
+            # Hier den Trainer initialisieren und starten
+            trainer, training_args = initialize_trainer(
+                model_name="gpt2",
+                epochs=self.epochs_var.get(),
+                learning_rate=self.lr_var.get(),
+                batch_size=self.batch_size_var.get(),
+                log_callback=self.log,  # Übergabe der Log-Methode
+                log_text_widget=self.train_log_text  # Übergabe des Log-Textfelds
+            )
+
+            # Führe das Training aus
+            trainer.train()
+        except Exception as e:
+            self.log(self.train_log_text, f"Fehler beim Training: {e}")
 
     # Lyrics in die Zwischenablage kopieren
     def copy_lyrics_to_clipboard(self):
