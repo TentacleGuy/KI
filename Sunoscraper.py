@@ -283,6 +283,7 @@ class SunoScraperApp(tk.Tk):
 
         self.log("Suche nach Playlist-Links auf der Startseite...")
         playlist_links = self.driver.find_elements(By.XPATH, "//a[contains(@href, '/playlist/')]")
+        
         playlist_urls = list(set([link.get_attribute("href") for link in playlist_links]))  # Duplikate entfernen
         self.log(f"Gefundene Playlist-Links: {len(playlist_urls)}")
 

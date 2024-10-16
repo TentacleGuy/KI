@@ -8,3 +8,9 @@ datasets
 torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 tensorflow==2.9.1
 transformers[torch]
+tqdm
+matplotlib
+GPUtil
+psutil
+torchsummary
+requests

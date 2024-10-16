@@ -9,6 +9,9 @@ import threading
 from datasets import load_dataset
 from training import *
 from generate import *
+from transformers import AutoModelForCausalLM, MODEL_MAPPING
+import requests
+
 
 class SongGeneratorApp(tk.Tk):
     def __init__(self):
@@ -16,6 +19,7 @@ class SongGeneratorApp(tk.Tk):
         self.title("Song KI Steuerzentrale")
         self.create_widgets()
         self.load_random_json_file()  # Lädt eine zufällige JSON-Datei beim Start
+        training_manager = TrainingManager(log_training_message=None, root=self)
 
     def create_widgets(self):
         # Tabbed Notebook für die drei Bereiche
@@ -97,38 +101,212 @@ class SongGeneratorApp(tk.Tk):
 
     # Trainings-Tab
     def create_training_tab(self, parent):
-        # Anpassbare Trainingsparameter
-        param_frame = tk.Frame(parent)
-        param_frame.grid(row=1, column=0, padx=10, pady=10, sticky="ew")
+        # Training settings frame
+        settings_frame = ttk.LabelFrame(parent, text="Training Settings")
+        settings_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
+        settings_frame.columnconfigure(1, weight=1)  # This makes the second column expandable
 
-        # Epochen
-        tk.Label(param_frame, text="Epochen:").grid(row=0, column=0, sticky="w")
+        # Model selection
+        ttk.Label(settings_frame, text="Model:").grid(row=0, column=0, sticky="w", padx=5, pady=2)
+        self.training_model_var = tk.StringVar()
+        self.training_model_dropdown = ttk.Combobox(settings_frame, textvariable=self.training_model_var, state="readonly")
+        self.training_model_dropdown.grid(row=0, column=1, sticky="ew", padx=5, pady=2)
+        self.training_model_dropdown.bind("<<ComboboxSelected>>", self.on_model_select)
+        self.update_model_list()
+
+        # Create input fields for all training settings
         self.epochs_var = tk.IntVar(value=DEFAULT_EPOCHS)
-        tk.Entry(param_frame, textvariable=self.epochs_var).grid(row=0, column=1, sticky="ew")
-
-        # Lernrate
-        tk.Label(param_frame, text="Lernrate:").grid(row=1, column=0, sticky="w")
         self.lr_var = tk.DoubleVar(value=DEFAULT_LEARNING_RATE)
-        tk.Entry(param_frame, textvariable=self.lr_var).grid(row=1, column=1, sticky="ew")
-
-        # Batch-Größe
-        tk.Label(param_frame, text="Batch-Größe:").grid(row=2, column=0, sticky="w")
         self.batch_size_var = tk.IntVar(value=DEFAULT_BATCH_SIZE)
-        tk.Entry(param_frame, textvariable=self.batch_size_var).grid(row=2, column=1, sticky="ew")
+        self.max_length_var = tk.IntVar(value=DEFAULT_MAX_LENGTH)
+        self.warmup_steps_var = tk.IntVar(value=DEFAULT_WARMUP_STEPS)
+        self.weight_decay_var = tk.DoubleVar(value=DEFAULT_WEIGHT_DECAY)
+        self.grad_accum_steps_var = tk.IntVar(value=DEFAULT_GRADIENT_ACCUMULATION_STEPS)
 
-        # Logs für den Trainingsfortschritt
-        train_log_frame = tk.Frame(parent)
-        train_log_frame.grid(row=3, column=0, padx=10, pady=10, sticky="ew")
+        settings = [
+            ("Epochs", self.epochs_var, DEFAULT_EPOCHS),
+            ("Learning Rate", self.lr_var, DEFAULT_LEARNING_RATE),
+            ("Batch Size", self.batch_size_var, DEFAULT_BATCH_SIZE),
+            ("Max Length", self.max_length_var, DEFAULT_MAX_LENGTH),
+            ("Warmup Steps", self.warmup_steps_var, DEFAULT_WARMUP_STEPS),
+            ("Weight Decay", self.weight_decay_var, DEFAULT_WEIGHT_DECAY),
+            ("Gradient Accumulation Steps", self.grad_accum_steps_var, DEFAULT_GRADIENT_ACCUMULATION_STEPS)
+        ]
 
-        self.train_log_text = tk.Text(train_log_frame, height=10, wrap=tk.WORD)
-        self.train_log_text.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
-        train_log_frame.columnconfigure(0, weight=1)
-        train_log_frame.rowconfigure(0, weight=1)
+        for i, (label, var, default) in enumerate(settings, start=1):
+            ttk.Label(settings_frame, text=label).grid(row=i, column=0, sticky="w", padx=5, pady=2)
+            var.set(default)
+            ttk.Entry(settings_frame, textvariable=var).grid(row=i, column=1, sticky="ew", padx=5, pady=2)
 
-        # Trainingsstart-Button
-        start_training_button = ttk.Button(parent, text="Training starten", command=self.start_training)
-        start_training_button.grid(row=4, column=0, padx=10, pady=10, sticky="ew")
+        parent.columnconfigure(0, weight=1)
+
+        #Training control frame
+        control_frame = ttk.LabelFrame(parent, text="Training Control")
+        control_frame.grid(row=1, column=0, padx=10, pady=10, sticky="nsew")
+
+        self.start_button = ttk.Button(control_frame, text="Start Training", command=self.start_training)
+        self.start_button.grid(row=0, column=0, padx=5, pady=5)
+
+        self.stop_button = ttk.Button(control_frame, text="Stop Training", command=self.stop_training, state="disabled")
+        self.stop_button.grid(row=0, column=1, padx=5, pady=5)
+
+        # Progress frame
+        progress_frame = ttk.LabelFrame(parent, text="Training Progress")
+        progress_frame.grid(row=2, column=0, padx=10, pady=10, sticky="nsew")
+
+        self.progress_var = tk.DoubleVar()
+        self.progress_bar = ttk.Progressbar(progress_frame, variable=self.progress_var, maximum=100)
+        self.progress_bar.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
+
+        self.status_var = tk.StringVar(value="Ready")
+        self.status_label = ttk.Label(progress_frame, textvariable=self.status_var)
+        self.status_label.grid(row=1, column=0, sticky="w", padx=5, pady=5)
+
+        # Resource usage frame
+        resource_frame = ttk.LabelFrame(parent, text="Resource Usage")
+        resource_frame.grid(row=3, column=0, padx=10, pady=10, sticky="nsew")
+
+        self.resource_var = tk.StringVar()
+        self.resource_label = ttk.Label(resource_frame, textvariable=self.resource_var)
+        self.resource_label.grid(row=0, column=0, sticky="w", padx=5, pady=5)
+
+        # Analysis frame
+        analysis_frame = ttk.LabelFrame(parent, text="Training Analysis")
+        analysis_frame.grid(row=0, column=1, rowspan=4, padx=10, pady=10, sticky="nsew")
+
+        self.loss_plot = ttk.Label(analysis_frame)
+        self.loss_plot.grid(row=0, column=0, padx=5, pady=5)
+
+        self.lr_plot = ttk.Label(analysis_frame)
+        self.lr_plot.grid(row=1, column=0, padx=5, pady=5)
+
+        self.gradient_plot = ttk.Label(analysis_frame)
+        self.gradient_plot.grid(row=2, column=0, padx=5, pady=5)
+
+        # Log frame
+        log_frame = ttk.LabelFrame(parent, text="Training Log")
+        log_frame.grid(row=4, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
+
+        self.log_text = tk.Text(log_frame, height=10, wrap=tk.WORD)
+        self.log_text.grid(row=0, column=0, sticky="nsew")
+
+        log_scrollbar = ttk.Scrollbar(log_frame, orient="vertical", command=self.log_text.yview)
+        log_scrollbar.grid(row=0, column=1, sticky="ns")
+        self.log_text.configure(yscrollcommand=log_scrollbar.set)
+
+        # Configure grid weights
+        parent.columnconfigure(0, weight=1)
+        parent.columnconfigure(1, weight=1)
+        for i in range(5):
+            parent.rowconfigure(i, weight=1)
+
+        # Bind the log function
+        log_training_message(self.log_training_message)
+
+    def get_available_models(self):
+        local_models =          ['---local----------']
+        transformer_models =    ['---transformers---']
+        hf_models =             ['---huggingface----']
+        
+        # Fetch local models
+        models_dir = os.path.join(os.getcwd(), 'models')
+        if os.path.exists(models_dir):
+            local_models.extend([d for d in os.listdir(models_dir) if os.path.isdir(os.path.join(models_dir, d))])
+        
+        # Fetch Hugging Face models
+        try:
+            response = requests.get("https://huggingface.co/api/models?filter=text-generation")
+            if response.status_code == 200:
+                hf_models.extend([model['id'] for model in response.json()[:200]])  # Limit to top 200 models
+        except Exception as e:
+            print(f"Error fetching Hugging Face models: {e}")
+        
+         # Dynamically load transformer models
+        transformer_models.extend(MODEL_MAPPING._model_mapping.keys())
+        
+        return local_models + hf_models + transformer_models
+
+    def load_or_download_model(self, model_name):
+        models_dir = os.path.join(os.getcwd(), 'models')
+        model_path = os.path.join(models_dir, model_name)
+        
+        try:
+            # Versuche zuerst, das Modell direkt aus der Transformers-Bibliothek zu laden
+            model = AutoModelForCausalLM.from_pretrained(model_name)
+            print(f"Modell {model_name} erfolgreich aus der Transformers-Bibliothek geladen.")
+            return model
+        except:
+            # Wenn das nicht klappt, versuche es aus dem lokalen Verzeichnis zu laden oder herunterzuladen
+            if os.path.exists(model_path):
+                print(f"Lade Modell {model_name} aus lokalem Verzeichnis.")
+                return AutoModelForCausalLM.from_pretrained(model_path)
+            else:
+                print(f"Lade Modell {model_name} herunter und speichere es lokal.")
+                model = AutoModelForCausalLM.from_pretrained(model_name)
+                model.save_pretrained(model_path)
+                return model
+
+    def start_training(self):
+        self.start_button.config(state="disabled")
+        self.stop_button.config(state="normal")
+
+        model_name = self.training_model_var.get().strip()
     
+        print(f"Ausgewähltes Modell: {model_name}")  # Debugging-Ausgabe
+
+        if model_name in ['---local----------', '---transformers---', '---huggingface----']:
+            messagebox.showerror("Error", "Please select a valid model")
+            return
+        
+        model = self.load_or_download_model(model_name)
+        
+        hyperparams = {
+            "epochs": self.epochs_var.get(),
+            "learning_rate": self.lr_var.get(),
+            "batch_size": self.batch_size_var.get(),
+            "max_length": self.max_length_var.get(),
+            "warmup_steps": self.warmup_steps_var.get(),
+            "weight_decay": self.weight_decay_var.get(),
+            "gradient_accumulation_steps": self.grad_accum_steps_var.get()
+        }
+        
+        training_manager.start_training(
+            model,
+            self.log_text,
+            self.progress_var,
+            self.status_var,
+            self.resource_var,
+            self.loss_plot,
+            **hyperparams
+        )
+
+    def stop_training(self):
+        training_manager.stop_training()
+        self.start_button.config(state="normal")
+        self.stop_button.config(state="disabled")
+
+    def on_model_select(self, event):
+        if self.training_model_dropdown.current() == -1:
+            self.training_model_dropdown.current(0)  # Select the first item if none is selected
+        selected_model = self.training_model_dropdown.get()
+        print(f"Neu ausgewähltes Modell: {selected_model}")
+        self.training_model_var.set(selected_model)
+        
+    def update_model_list(self):
+        models = self.get_available_models()
+        self.training_model_dropdown['values'] = models
+        if models:
+            self.training_model_dropdown.set(models[0])
+        print("Selected model:", self.training_model_var.get())  # Debug output
+
+    def update_loss_plot(self, image_path):
+        img = tk.PhotoImage(file=image_path)
+        self.loss_plot.config(image=img)
+        self.loss_plot.image = img  # Halte eine Referenz
+    
+    def create_loss_plot(self):
+        self.loss_plot = tk.Label(self.training_frame)
+        self.loss_plot.grid(row=0, column=1, padx=5, pady=5, sticky="nsew")
     # Lyricsgenerator-Tab
     def create_generation_tab(self, parent):
         generation_frame = tk.Frame(parent)
@@ -192,6 +370,14 @@ class SongGeneratorApp(tk.Tk):
     def log_message(self, message):
         """Fügt eine Log-Nachricht in das Log-Textfeld ein."""
         self.log(self.log_text, message)
+
+    def log(self, log_text_widget, message):
+        log_text_widget.insert(tk.END, f"{message}\n")
+        log_text_widget.see(tk.END)
+
+    def log_training_message(self, log_text_widget, message):
+        log_text_widget.insert(tk.END, f"{message}\n")
+        log_text_widget.see(tk.END)
 
     def update_prompt_text(self, lyrics):
         """Aktualisiert das Prompt-Textfeld mit den generierten Lyrics."""
@@ -284,11 +470,6 @@ class SongGeneratorApp(tk.Tk):
                 log_preparation_message(f"Fehler bei der Datenvorbereitung: {e}")
         else:
             self.log(self.prep_log_text, "Fehler: Bitte alle Felder ausfüllen.")
-
-    def log(self, log_text_widget, message):
-        log_text_widget.insert(tk.END, f"{message}\n")
-        log_text_widget.see(tk.END)
-
     # Daten aus einer zufälligen JSON-Datei laden und die Keys anzeigen
     def load_random_json_file(self):
         self.log(self.prep_log_text, f"Lade Songs aus dem Verzeichnis: {SONGS_DIR}")
@@ -356,30 +537,6 @@ class SongGeneratorApp(tk.Tk):
                     combobox.set(key)
                     return True  # Sobald wir einen Treffer finden, hören wir auf
         return False  # Kein Treffer gefunden
-   # Funktion zum Auswählen eines Trainingsmodells
-
-#TODO:weiteren klick auf button verhindern, wenn training läuft
-    def start_training(self):
-        # Führe den Trainingsprozess in einem separaten Thread aus
-        training_thread = threading.Thread(target=self.run_training)
-        training_thread.start()
-
-    def run_training(self):
-        try:
-            # Hier den Trainer initialisieren und starten
-            trainer, training_args = initialize_trainer(
-                model_name="gpt2",
-                epochs=self.epochs_var.get(),
-                learning_rate=self.lr_var.get(),
-                batch_size=self.batch_size_var.get(),
-                log_callback=self.log,  # Übergabe der Log-Methode
-                log_text_widget=self.train_log_text  # Übergabe des Log-Textfelds
-            )
-
-            # Führe das Training aus
-            trainer.train()
-        except Exception as e:
-            self.log(self.train_log_text, f"Fehler beim Training: {e}")
 
     # Lyrics in die Zwischenablage kopieren
     def copy_lyrics_to_clipboard(self):
