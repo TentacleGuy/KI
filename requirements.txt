@@ -5,8 +5,6 @@ langdetect
 regex
 transformers
 datasets
-torch
-torchvision
-torchaudio
+torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 tensorflow==2.9.1
 transformers[torch]
