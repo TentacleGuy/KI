@@ -43,6 +43,10 @@ Dieses Projekt bietet eine vollständige Pipeline, um Songdaten von Webseiten zu
 2. Wechsle ins Projektverzeichnis:
     ```bash
     cd KI
+    #virtuelle umgebung erstellen und aktivieren
+    python -m venv 
+    .\.venv\Scripts\activatenenv 
+
     ```
 
 3. Installiere die benötigten Abhängigkeiten:
