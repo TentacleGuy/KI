@@ -64,3 +64,37 @@ Starte das Scraping von Playlists mit dem folgenden Befehl:
 
 ```bash
 python Sunoscraper.py
+
+
+#TODO:
+    - # **Allgemein**
+        - Startzeit verkürzen(async?? laden, Threads?)
+        - Gleichartige Funktionen zusammenfassen
+
+
+    - # **UI**
+        - UI und Funktionen Trennen!
+        - UI Anpassen nur noch ein Log-Feld, welches unter den Tabs angelegt ist und bei wechsel der Tabs nicht verschwindet
+        - Scraper mit der UI verbinden
+        - Evtl Neue Oberfläche machen und alle Funktionen in die neue Oberfläche integrieren? 
+        - Settingstab hinzufügen - settings.json anlegen? oder wie daten speichern
+        - Tab hinzufügen für Anzeige Allgemeiner Informationen, wie Cuda version, gpu verfügbarkeit, installierte Pakete
+
+    - # **Datenvorbereitung**
+        - Textfilter anpassen: bestimmte zeichen zulassen wie [] und ()
+        - eingabefeld für regex??
+
+    - # **Training**
+        - Anzeigen für die trainingsanalyse anpassen
+        - Suchfuntion für models einbauen, sodass man au tippen kann
+        - URL-feld für Huggingfaces anlegen?
+        - umschalter für Model Quelle einbauen?
+
+    - # **Lyricsgenerator**
+        - Feld für Sprache hinzufügen(Sprachkürzel nach detect(lyrics) funktion)
+
+    - # **Sunoscraper**
+        - Neue Funktion(en) Für Scrapen von Manuell hinzugefügten Playlists und Songs
+        - Dafür Automatisch 2 Dateien Anlegen,falls nicht vorhanden
+        - Die funktion soll mit in die Standard Scraping Funktion eingebaut werden.
+        - Scraping der URLs so anpassen, dass auf der Startseite auch Songs gescraped werden

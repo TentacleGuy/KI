@@ -7,3 +7,4 @@ trainingdata.json
 logs/
 results/
 .tmp.*
+training_loss.png
