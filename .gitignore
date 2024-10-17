@@ -1,7 +1,7 @@
 .gpt-runner/
 songs/
 song_meta/
-/venv
+/.venv
 __pycache__/
 trainingdata.json
 logs/
