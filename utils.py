@@ -18,8 +18,8 @@ file_lock = Lock()
 
 #textfilter
 def remove_non_text_characters(text):
-    # Regex, der nur Buchstaben, Zahlen und gängige Satzzeichen zulässt
-    pattern = regex.compile(r'[^\p{L}\p{N}\s\.\,\!\?\-\']', regex.UNICODE)
+    # Regex, der Buchstaben, Zahlen und eine breite Palette von Satzzeichen und Symbolen zulässt
+    pattern = regex.compile(r'[^\p{L}\p{N}\s\.,\'#,\.\-_:;!"§$%&/()=?{[\]}\´`+*~#\'|<>]', regex.UNICODE)
     return pattern.sub('', text)
 
 # Lade JSON Datei, falls vorhanden
@@ -43,7 +43,7 @@ def clean_filename(filename):
 
 # Meta-Tags extrahieren
 def extract_meta_tags(lyrics):
-    return re.findall(r'\[(.*?)\]', lyrics)
+    return re.findall(r'\[.*?\]', lyrics)
 
 # Song-ID aus der URL extrahieren
 def extract_song_id_from_url(song_url):
